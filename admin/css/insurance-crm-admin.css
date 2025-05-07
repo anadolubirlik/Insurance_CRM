@@ -1,0 +1,200 @@
+/**
+ * Insurance CRM Admin Styles
+ */
+
+/* Genel Stil */
+.insurance-crm-wrap {
+    margin: 20px 0;
+}
+
+.insurance-crm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.insurance-crm-header h1 {
+    margin: 0;
+}
+
+/* Form Stilleri */
+.insurance-crm-form-container {
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    margin-bottom: 20px;
+}
+
+.insurance-crm-form-row {
+    margin-bottom: 15px;
+}
+
+.insurance-crm-form-row label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.insurance-crm-form-row input[type="text"],
+.insurance-crm-form-row input[type="email"],
+.insurance-crm-form-row input[type="tel"],
+.insurance-crm-form-row input[type="number"],
+.insurance-crm-form-row input[type="date"],
+.insurance-crm-form-row input[type="datetime-local"],
+.insurance-crm-form-row textarea,
+.insurance-crm-form-row select {
+    width: 100%;
+    max-width: 400px;
+}
+
+.insurance-crm-form-row textarea {
+    min-height: 100px;
+}
+
+.insurance-crm-form-row .required {
+    color: #dc3232;
+}
+
+.insurance-crm-form-row .description {
+    color: #666;
+    font-style: italic;
+    margin-top: 5px;
+}
+
+/* Tablo Stilleri */
+.insurance-crm-table-container {
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    margin-bottom: 20px;
+}
+
+.insurance-crm-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.insurance-crm-table th,
+.insurance-crm-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.insurance-crm-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+}
+
+.insurance-crm-table tr:hover {
+    background: #f8f9fa;
+}
+
+/* Badge Stilleri */
+.insurance-crm-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.insurance-crm-badge-success {
+    background: #46b450;
+    color: #fff;
+}
+
+.insurance-crm-badge-warning {
+    background: #ffb900;
+    color: #fff;
+}
+
+.insurance-crm-badge-danger {
+    background: #dc3232;
+    color: #fff;
+}
+
+.insurance-crm-badge-default {
+    background: #666;
+    color: #fff;
+}
+
+.insurance-crm-badge-low {
+    background: #46b450;
+    color: #fff;
+}
+
+.insurance-crm-badge-medium {
+    background: #ffb900;
+    color: #fff;
+}
+
+.insurance-crm-badge-high {
+    background: #dc3232;
+    color: #fff;
+}
+
+/* İstatistik Kartları */
+.insurance-crm-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.insurance-crm-stat-card {
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    text-align: center;
+}
+
+.insurance-crm-stat-card h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #23282d;
+}
+
+.insurance-crm-stat-number {
+    font-size: 24px;
+    font-weight: 600;
+    color: #0073aa;
+    margin-bottom: 5px;
+}
+
+.insurance-crm-stat-label {
+    font-size: 12px;
+    color: #666;
+}
+
+/* Checkbox Labels */
+.checkbox-label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+/* Responsive */
+@media screen and (max-width: 782px) {
+    .insurance-crm-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .insurance-crm-header h1 {
+        margin-bottom: 10px;
+    }
+
+    .insurance-crm-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .insurance-crm-table {
+        display: block;
+        overflow-x: auto;
+    }
+}

@@ -1,0 +1,38 @@
+{
+    "name": "anadolubirlik/insurance-crm",
+    "description": "Sigorta acenteleri için müşteri ve poliçe yönetim sistemi.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Anadolu Birlik",
+            "email": "info@anadolubirlik.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "composer/installers": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0",
+        "wp-coding-standards/wpcs": "^2.3",
+        "dealerdirect/phpcodesniffer-composer-installer": "^0.7",
+        "phpcompatibility/phpcompatibility-wp": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "InsuranceCRM\\": "includes/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "phpcs": "phpcs --standard=WordPress",
+        "phpcbf": "phpcbf --standard=WordPress"
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true,
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    }
+}

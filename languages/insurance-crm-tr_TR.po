@@ -1,0 +1,217 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Insurance CRM 1.0.0\n"
+"Report-Msgid-Bugs-To: https://github.com/anadolubirlik/insurance-crm/issues\n"
+"POT-Creation-Date: 2025-05-02 13:21:48+00:00\n"
+"PO-Revision-Date: 2025-05-02 13:21:48+00:00\n"
+"Last-Translator: Anadolu Birlik <info@anadolubirlik.com>\n"
+"Language-Team: Türkçe <info@anadolubirlik.com>\n"
+"Language: tr_TR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.0\n"
+"X-Poedit-KeywordsList: __;_e;_n:1,2;_x:1,2c;_ex:1,2c;_nx:4c,1,2;esc_attr__;"
+"esc_attr_e;esc_attr_x:1,2c;esc_html__;esc_html_e;esc_html_x:1,2c;_n_noop:1,2;"
+"_nx_noop:3c,1,2;__ngettext_noop:1,2\n"
+"X-Poedit-Basepath: ..\n"
+"X-Poedit-SearchPath-0: .\n"
+"X-Poedit-SearchPathExcluded-0: node_modules\n"
+"X-Poedit-SearchPathExcluded-1: vendor\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: admin/class-insurance-crm-admin.php:42
+msgid "Insurance CRM"
+msgstr "Sigorta CRM"
+
+#: admin/class-insurance-crm-admin.php:51
+msgid "Gösterge Paneli"
+msgstr "Gösterge Paneli"
+
+#: admin/class-insurance-crm-admin.php:60
+msgid "Müşteriler"
+msgstr "Müşteriler"
+
+#: admin/class-insurance-crm-admin.php:69
+msgid "Poliçeler"
+msgstr "Poliçeler"
+
+#: admin/class-insurance-crm-admin.php:78
+msgid "Görevler"
+msgstr "Görevler"
+
+#: admin/class-insurance-crm-admin.php:87
+msgid "Raporlar"
+msgstr "Raporlar"
+
+#: admin/class-insurance-crm-admin.php:96
+msgid "Ayarlar"
+msgstr "Ayarlar"
+
+#: admin/partials/insurance-crm-admin-customers.php:15
+msgid "Yeni Müşteri"
+msgstr "Yeni Müşteri"
+
+#: admin/partials/insurance-crm-admin-customers.php:17
+msgid "Müşteri Düzenle"
+msgstr "Müşteri Düzenle"
+
+#: admin/partials/insurance-crm-admin-customers.php:31
+msgid "Ad"
+msgstr "Ad"
+
+#: admin/partials/insurance-crm-admin-customers.php:37
+msgid "Soyad"
+msgstr "Soyad"
+
+#: admin/partials/insurance-crm-admin-customers.php:43
+msgid "TC Kimlik No"
+msgstr "TC Kimlik No"
+
+#: admin/partials/insurance-crm-admin-customers.php:49
+msgid "E-posta"
+msgstr "E-posta"
+
+#: admin/partials/insurance-crm-admin-customers.php:55
+msgid "Telefon"
+msgstr "Telefon"
+
+#: admin/partials/insurance-crm-admin-customers.php:61
+msgid "Adres"
+msgstr "Adres"
+
+#: admin/partials/insurance-crm-admin-customers.php:67
+msgid "Kategori"
+msgstr "Kategori"
+
+#: admin/partials/insurance-crm-admin-customers.php:70
+msgid "Bireysel"
+msgstr "Bireysel"
+
+#: admin/partials/insurance-crm-admin-customers.php:71
+msgid "Kurumsal"
+msgstr "Kurumsal"
+
+#: admin/partials/insurance-crm-admin-customers.php:77
+msgid "Durum"
+msgstr "Durum"
+
+#: admin/partials/insurance-crm-admin-customers.php:80
+msgid "Aktif"
+msgstr "Aktif"
+
+#: admin/partials/insurance-crm-admin-customers.php:81
+msgid "Pasif"
+msgstr "Pasif"
+
+#: admin/partials/insurance-crm-admin-policies.php:15
+msgid "Yeni Poliçe"
+msgstr "Yeni Poliçe"
+
+#: admin/partials/insurance-crm-admin-policies.php:17
+msgid "Poliçe Düzenle"
+msgstr "Poliçe Düzenle"
+
+#: admin/partials/insurance-crm-admin-policies.php:31
+msgid "Müşteri"
+msgstr "Müşteri"
+
+#: admin/partials/insurance-crm-admin-policies.php:37
+msgid "Poliçe No"
+msgstr "Poliçe No"
+
+#: admin/partials/insurance-crm-admin-policies.php:43
+msgid "Poliçe Türü"
+msgstr "Poliçe Türü"
+
+#: admin/partials/insurance-crm-admin-policies.php:46
+msgid "Trafik Sigortası"
+msgstr "Trafik Sigortası"
+
+#: admin/partials/insurance-crm-admin-policies.php:47
+msgid "Kasko"
+msgstr "Kasko"
+
+#: admin/partials/insurance-crm-admin-policies.php:48
+msgid "Konut Sigortası"
+msgstr "Konut Sigortası"
+
+#: admin/partials/insurance-crm-admin-policies.php:49
+msgid "DASK"
+msgstr "DASK"
+
+#: admin/partials/insurance-crm-admin-policies.php:50
+msgid "Sağlık Sigortası"
+msgstr "Sağlık Sigortası"
+
+#: admin/partials/insurance-crm-admin-policies.php:51
+msgid "Hayat Sigortası"
+msgstr "Hayat Sigortası"
+
+#: admin/partials/insurance-crm-admin-policies.php:57
+msgid "Başlangıç Tarihi"
+msgstr "Başlangıç Tarihi"
+
+#: admin/partials/insurance-crm-admin-policies.php:63
+msgid "Bitiş Tarihi"
+msgstr "Bitiş Tarihi"
+
+#: admin/partials/insurance-crm-admin-policies.php:69
+msgid "Prim Tutarı"
+msgstr "Prim Tutarı"
+
+#: admin/partials/insurance-crm-admin-tasks.php:15
+msgid "Yeni Görev"
+msgstr "Yeni Görev"
+
+#: admin/partials/insurance-crm-admin-tasks.php:17
+msgid "Görev Düzenle"
+msgstr "Görev Düzenle"
+
+#: admin/partials/insurance-crm-admin-tasks.php:31
+msgid "Görev Açıklaması"
+msgstr "Görev Açıklaması"
+
+#: admin/partials/insurance-crm-admin-tasks.php:37
+msgid "Son Tarih"
+msgstr "Son Tarih"
+
+#: admin/partials/insurance-crm-admin-tasks.php:43
+msgid "Öncelik"
+msgstr "Öncelik"
+
+#: admin/partials/insurance-crm-admin-tasks.php:46
+msgid "Düşük"
+msgstr "Düşük"
+
+#: admin/partials/insurance-crm-admin-tasks.php:47
+msgid "Orta"
+msgstr "Orta"
+
+#: admin/partials/insurance-crm-admin-tasks.php:48
+msgid "Yüksek"
+msgstr "Yüksek"
+
+#: includes/class-insurance-crm-activator.php:122
+msgid "Bu işlem için yetkiniz bulunmuyor."
+msgstr "Bu işlem için yetkiniz bulunmuyor."
+
+#: includes/class-insurance-crm-customer.php:89
+msgid "Geçersiz TC Kimlik numarası."
+msgstr "Geçersiz TC Kimlik numarası."
+
+#: includes/class-insurance-crm-customer.php:93
+msgid "Bu TC Kimlik numarası ile kayıtlı müşteri bulunmaktadır."
+msgstr "Bu TC Kimlik numarası ile kayıtlı müşteri bulunmaktadır."
+
+#: includes/class-insurance-crm-policy.php:89
+msgid "Geçersiz müşteri."
+msgstr "Geçersiz müşteri."
+
+#: includes/class-insurance-crm-policy.php:93
+msgid "Bu poliçe numarası ile kayıtlı poliçe bulunmaktadır."
+msgstr "Bu poliçe numarası ile kayıtlı poliçe bulunmaktadır."
+
+#: includes/class-insurance-crm-task.php:89
+msgid "Geçersiz görev."
+msgstr "Geçersiz görev."
