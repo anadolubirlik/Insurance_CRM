@@ -1,150 +1,175 @@
 <?php
+
 /**
- * Admin tarafı işlemleri için sınıf
+ * Admin işlevselliği için sınıf
  */
-class Insurance_CRM_Admin {
 
-    private $plugin_name;
-    private $version;
+if (!class_exists('Insurance_CRM_Admin')) {
+    class Insurance_CRM_Admin {
+        /**
+         * The ID of this plugin.
+         *
+         * @since    1.0.0
+         * @access   private
+         * @var      string    $plugin_name    The ID of this plugin.
+         */
+        private $plugin_name;
 
-    public function __construct($plugin_name, $version) {
-        $this->plugin_name = $plugin_name;
-        $this->version = $version;
-    }
+        /**
+         * The version of this plugin.
+         *
+         * @since    1.0.0
+         * @access   private
+         * @var      string    $version    The current version of this plugin.
+         */
+        private $version;
 
-    public function enqueue_styles() {
-        wp_enqueue_style($this->plugin_name, plugin_dir_url(__FILE__) . 'css/insurance-crm-admin.css', array(), $this->version, 'all');
-    }
+        /**
+         * Initialize the class and set its properties.
+         *
+         * @since    1.0.0
+         * @param    string    $plugin_name    The name of this plugin.
+         * @param    string    $version        The version of this plugin.
+         */
+        public function __construct($plugin_name, $version) {
+            $this->plugin_name = $plugin_name;
+            $this->version = $version;
 
-    public function enqueue_scripts() {
-        wp_enqueue_script($this->plugin_name, plugin_dir_url(__FILE__) . 'js/insurance-crm-admin.js', array('jquery'), $this->version, false);
-        
-        wp_localize_script($this->plugin_name, 'insurance_crm', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('insurance_crm_nonce'),
-            'strings' => array(
-                'confirm_delete' => __('Bu öğeyi silmek istediğinizden emin misiniz?', 'insurance-crm'),
-                'saving' => __('Kaydediliyor...', 'insurance-crm'),
-                'saved' => __('Kaydedildi!', 'insurance-crm'),
-                'error' => __('Bir hata oluştu!', 'insurance-crm')
-            )
-        ));
-    }
-
-    public function add_plugin_admin_menu() {
-        add_menu_page(
-            __('Insurance CRM', 'insurance-crm'),
-            __('Insurance CRM', 'insurance-crm'),
-            'manage_options',
-            $this->plugin_name,
-            array($this, 'display_plugin_setup_page'),
-            'dashicons-groups',
-            6
-        );
-        
-        add_submenu_page(
-            $this->plugin_name,
-            __('Müşteriler', 'insurance-crm'),
-            __('Müşteriler', 'insurance-crm'),
-            'edit_posts',
-            $this->plugin_name . '-customers',
-            array($this, 'display_customers_page')
-        );
-        
-        add_submenu_page(
-            $this->plugin_name,
-            __('Poliçeler', 'insurance-crm'),
-            __('Poliçeler', 'insurance-crm'),
-            'edit_posts',
-            $this->plugin_name . '-policies',
-            array($this, 'display_policies_page')
-        );
-        
-        add_submenu_page(
-            $this->plugin_name,
-            __('Görevler', 'insurance-crm'),
-            __('Görevler', 'insurance-crm'),
-            'edit_posts',
-            $this->plugin_name . '-tasks',
-            array($this, 'display_tasks_page')
-        );
-        
-        add_submenu_page(
-            $this->plugin_name,
-            __('Raporlar', 'insurance-crm'),
-            __('Raporlar', 'insurance-crm'),
-            'edit_posts',
-            $this->plugin_name . '-reports',
-            array($this, 'display_reports_page')
-        );
-        
-        add_submenu_page(
-            $this->plugin_name,
-            __('Ayarlar', 'insurance-crm'),
-            __('Ayarlar', 'insurance-crm'),
-            'manage_options',
-            $this->plugin_name . '-settings',
-            array($this, 'display_settings_page')
-        );
-    }
-
-    public function display_plugin_setup_page() {
-        include_once 'partials/insurance-crm-admin-display.php';
-    }
-
-    public function display_customers_page() {
-        include_once 'partials/insurance-crm-admin-customers.php';
-    }
-
-    public function display_policies_page() {
-        include_once 'partials/insurance-crm-admin-policies.php';
-    }
-
-    public function display_tasks_page() {
-        include_once 'partials/insurance-crm-admin-tasks.php';
-    }
-
-    public function display_reports_page() {
-        include_once 'partials/insurance-crm-admin-reports.php';
-    }
-
-    public function display_settings_page() {
-        include_once 'partials/insurance-crm-admin-settings.php';
-    }
-
-    // AJAX handlers
-    public function ajax_save_customer() {
-        check_ajax_referer('insurance_crm_nonce');
-        
-        if (!current_user_can('edit_posts')) {
-            wp_send_json_error(__('Yetkiniz yok.', 'insurance-crm'));
+            add_action('admin_menu', array($this, 'add_plugin_admin_menu'));
+            add_action('admin_enqueue_scripts', array($this, 'enqueue_styles'));
+            add_action('admin_enqueue_scripts', array($this, 'enqueue_scripts'));
         }
-        
-        $customer = new Insurance_CRM_Customer();
-        $data = array(
-            'first_name' => sanitize_text_field($_POST['first_name']),
-            'last_name' => sanitize_text_field($_POST['last_name']),
-            'tc_identity' => sanitize_text_field($_POST['tc_identity']),
-            'email' => sanitize_email($_POST['email']),
-            'phone' => sanitize_text_field($_POST['phone']),
-            'address' => sanitize_textarea_field($_POST['address']),
-            'category' => sanitize_text_field($_POST['category']),
-            'status' => sanitize_text_field($_POST['status'])
-        );
-        
-        if (isset($_POST['id'])) {
-            $result = $customer->update(intval($_POST['id']), $data);
-        } else {
-            $result = $customer->create($data);
+
+        /**
+         * Register the stylesheets for the admin area.
+         *
+         * @since    1.0.0
+         */
+        public function enqueue_styles() {
+            wp_enqueue_style(
+                $this->plugin_name,
+                plugin_dir_url(__FILE__) . 'css/insurance-crm-admin.css',
+                array(),
+                $this->version,
+                'all'
+            );
         }
-        
-        if (is_wp_error($result)) {
-            wp_send_json_error($result->get_error_message());
+
+        /**
+         * Register the JavaScript for the admin area.
+         *
+         * @since    1.0.0
+         */
+        public function enqueue_scripts() {
+            wp_enqueue_script(
+                $this->plugin_name,
+                plugin_dir_url(__FILE__) . 'js/insurance-crm-admin.js',
+                array('jquery'),
+                $this->version,
+                false
+            );
         }
-        
-        wp_send_json_success(array(
-            'id' => is_numeric($result) ? $result : intval($_POST['id']),
-            'message' => __('Müşteri kaydedildi.', 'insurance-crm')
-        ));
+
+        /**
+         * Add menu items
+         */
+        public function add_plugin_admin_menu() {
+            add_menu_page(
+                'Insurance CRM',
+                'Insurance CRM',
+                'manage_insurance_crm',
+                'insurance-crm',
+                array($this, 'display_plugin_setup_page'),
+                'dashicons-businessman',
+                6
+            );
+
+            add_submenu_page(
+                'insurance-crm',
+                'Müşteriler',
+                'Müşteriler',
+                'manage_insurance_crm',
+                'insurance-crm-customers',
+                array($this, 'display_customers_page')
+            );
+
+            add_submenu_page(
+                'insurance-crm',
+                'Poliçeler',
+                'Poliçeler',
+                'manage_insurance_crm',
+                'insurance-crm-policies',
+                array($this, 'display_policies_page')
+            );
+
+            add_submenu_page(
+                'insurance-crm',
+                'Görevler',
+                'Görevler',
+                'manage_insurance_crm',
+                'insurance-crm-tasks',
+                array($this, 'display_tasks_page')
+            );
+
+            add_submenu_page(
+                'insurance-crm',
+                'Raporlar',
+                'Raporlar',
+                'manage_insurance_crm',
+                'insurance-crm-reports',
+                array($this, 'display_reports_page')
+            );
+
+            add_submenu_page(
+                'insurance-crm',
+                'Ayarlar',
+                'Ayarlar',
+                'manage_insurance_crm',
+                'insurance-crm-settings',
+                array($this, 'display_settings_page')
+            );
+        }
+
+        /**
+         * Ana sayfa görüntüleme
+         */
+        public function display_plugin_setup_page() {
+            include_once('partials/insurance-crm-admin-display.php');
+        }
+
+        /**
+         * Müşteriler sayfası görüntüleme
+         */
+        public function display_customers_page() {
+            include_once('partials/insurance-crm-admin-customers.php');
+        }
+
+        /**
+         * Poliçeler sayfası görüntüleme
+         */
+        public function display_policies_page() {
+            include_once('partials/insurance-crm-admin-policies.php');
+        }
+
+        /**
+         * Görevler sayfası görüntüleme
+         */
+        public function display_tasks_page() {
+            include_once('partials/insurance-crm-admin-tasks.php');
+        }
+
+        /**
+         * Raporlar sayfası görüntüleme
+         */
+        public function display_reports_page() {
+            include_once('partials/insurance-crm-admin-reports.php');
+        }
+
+        /**
+         * Ayarlar sayfası görüntüleme
+         */
+        public function display_settings_page() {
+            include_once('partials/insurance-crm-admin-settings.php');
+        }
     }
 }

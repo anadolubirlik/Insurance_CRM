@@ -30,8 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['insurance_crm_nonce']
         'phone' => sanitize_text_field($_POST['phone']),
         'address' => sanitize_textarea_field($_POST['address']),
         'category' => sanitize_text_field($_POST['category']),
-        'status' => sanitize_text_field($_POST['status']),
-        'representative_id' => isset($_POST['representative_id']) ? intval($_POST['representative_id']) : null
+        'status' => sanitize_text_field($_POST['status'])
     );
 
     if ($id > 0) {
@@ -130,7 +129,6 @@ if (isset($error_message)) {
                     <th><?php _e('Telefon', 'insurance-crm'); ?></th>
                     <th><?php _e('Kategori', 'insurance-crm'); ?></th>
                     <th><?php _e('Durum', 'insurance-crm'); ?></th>
-                    <th><?php _e('Müşteri Temsilcisi', 'insurance-crm'); ?></th>
                     <th><?php _e('Poliçeler', 'insurance-crm'); ?></th>
                     <th><?php _e('İşlemler', 'insurance-crm'); ?></th>
                 </tr>
@@ -170,22 +168,6 @@ if (isset($error_message)) {
                             ?>
                         </td>
                         <td>
-                            <?php 
-                            if (!empty($item->representative_id)) {
-                                global $wpdb;
-                                $representative = $wpdb->get_row($wpdb->prepare("
-                                    SELECT r.*, u.display_name 
-                                    FROM {$wpdb->prefix}insurance_crm_representatives r
-                                    JOIN {$wpdb->users} u ON r.user_id = u.ID
-                                    WHERE r.id = %d
-                                ", $item->representative_id));
-                                echo $representative ? esc_html($representative->display_name) : '-';
-                            } else {
-                                echo '-';
-                            }
-                            ?>
-                        </td>
-                        <td>
                             <?php
                             $policy = new Insurance_CRM_Policy();
                             $policy_count = count($policy->get_all(array('customer_id' => $item->id)));
@@ -205,7 +187,7 @@ if (isset($error_message)) {
                 else:
                 ?>
                     <tr>
-                        <td colspan="9"><?php _e('Müşteri bulunamadı.', 'insurance-crm'); ?></td>
+                        <td colspan="8"><?php _e('Müşteri bulunamadı.', 'insurance-crm'); ?></td>
                     </tr>
                 <?php endif; ?>
             </tbody>
@@ -307,34 +289,6 @@ if (isset($error_message)) {
                         <select name="status" id="status">
                             <option value="aktif" <?php selected(isset($customer_data->status) ? $customer_data->status : '', 'aktif'); ?>><?php _e('Aktif', 'insurance-crm'); ?></option>
                             <option value="pasif" <?php selected(isset($customer_data->status) ? $customer_data->status : '', 'pasif'); ?>><?php _e('Pasif', 'insurance-crm'); ?></option>
-                        </select>
-                    </td>
-                </tr>
-
-                <tr>
-                    <th scope="row">
-                        <label for="representative_id"><?php _e('Müşteri Temsilcisi', 'insurance-crm'); ?> <span class="required">*</span></label>
-                    </th>
-                    <td>
-                        <?php
-                        global $wpdb;
-                        $representatives = $wpdb->get_results("
-                            SELECT r.*, u.display_name 
-                            FROM {$wpdb->prefix}insurance_crm_representatives r
-                            JOIN {$wpdb->users} u ON r.user_id = u.ID
-                            WHERE r.status = 'active'
-                            ORDER BY u.display_name ASC
-                        ");
-                        
-                        $current_rep = isset($customer_data->representative_id) ? $customer_data->representative_id : '';
-                        ?>
-                        <select name="representative_id" id="representative_id" required>
-                            <option value=""><?php _e('Seçiniz...', 'insurance-crm'); ?></option>
-                            <?php foreach($representatives as $rep): ?>
-                                <option value="<?php echo $rep->id; ?>" <?php selected($current_rep, $rep->id); ?>>
-                                    <?php echo esc_html($rep->display_name); ?>
-                                </option>
-                            <?php endforeach; ?>
                         </select>
                     </td>
                 </tr>

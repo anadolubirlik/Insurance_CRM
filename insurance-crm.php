@@ -62,9 +62,6 @@ function run_insurance_crm() {
     $plugin->run();
 }
 
-/**
- * Run the plugin
- */
 run_insurance_crm();
 
 /**
@@ -263,3 +260,480 @@ function insurance_crm_daily_tasks() {
     }
 }
 add_action('insurance_crm_daily_cron', 'insurance_crm_daily_tasks');
+
+/**
+ * Müşteri Temsilcisi rolü ve yetkileri
+ */
+function insurance_crm_add_representative_role() {
+    // Müşteri Temsilcisi rolünü ekle
+    add_role('insurance_representative', 'Müşteri Temsilcisi', array(
+        'read' => true,
+        'upload_files' => true,
+        'read_insurance_crm' => true,
+        'edit_insurance_crm' => true,
+        'publish_insurance_crm' => true
+    ));
+}
+
+/**
+ * Yeni müşteri temsilcisi oluşturulduğunda otomatik kullanıcı oluştur
+ */
+function insurance_crm_create_representative_user($rep_id, $data) {
+    $username = sanitize_user(strtolower($data['first_name'] . '.' . $data['last_name']));
+    
+    $original_username = $username;
+    $count = 1;
+    while (username_exists($username)) {
+        $username = $original_username . $count;
+        $count++;
+    }
+
+    $password = wp_generate_password();
+    
+    $user_data = array(
+        'user_login' => $username,
+        'user_pass' => $password,
+        'user_email' => $data['email'],
+        'first_name' => $data['first_name'],
+        'last_name' => $data['last_name'],
+        'role' => 'insurance_representative'
+    );
+
+    $user_id = wp_insert_user($user_data);
+
+    if (!is_wp_error($user_id)) {
+        update_user_meta($user_id, '_insurance_representative_id', $rep_id);
+        wp_send_new_user_notifications($user_id, 'both');
+        return $user_id;
+    }
+
+    return false;
+}
+
+/**
+ * Admin initialize
+ */
+function insurance_crm_admin_init() {
+    if (!class_exists('Insurance_CRM_Admin')) {
+        require_once plugin_dir_path(__FILE__) . 'admin/class-insurance-crm-admin.php';
+    }
+    
+    // Users page'i oluştur
+    $admin_dir = plugin_dir_path(__FILE__) . 'admin/';
+    if (!file_exists($admin_dir)) {
+        mkdir($admin_dir, 0755, true);
+    }
+    
+    $users_page_path = $admin_dir . 'users-page.php';
+    if (!file_exists($users_page_path)) {
+        $users_page_content = '<?php
+if (!defined("ABSPATH")) {
+    exit;
+}
+
+function insurance_crm_users_page() {
+    echo "<div class=\"wrap\">";
+    echo "<h1>Kullanıcı Yönetimi</h1>";
+    echo "</div>";
+}';
+        file_put_contents($users_page_path, $users_page_content);
+    }
+}
+add_action('admin_init', 'insurance_crm_admin_init');
+
+/**
+ * Get total premium amount
+ */
+function insurance_crm_get_total_premium($customer_id = null) {
+    global $wpdb;
+    
+    $where = '';
+    $args = array();
+    
+    if ($customer_id) {
+        $where = 'WHERE customer_id = %d';
+        $args[] = $customer_id;
+    }
+    
+    $query = $wpdb->prepare(
+        "SELECT SUM(premium_amount) as total_premium 
+         FROM {$wpdb->prefix}insurance_crm_policies 
+         $where",
+        $args
+    );
+    
+    return $wpdb->get_var($query);
+}
+
+// Müşteri Temsilcisi tablosunu oluştur
+function insurance_crm_create_representatives_table() {
+    global $wpdb;
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $table_representatives = $wpdb->prefix . 'insurance_crm_representatives';
+    $sql_representatives = "CREATE TABLE IF NOT EXISTS $table_representatives (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        user_id bigint(20) NOT NULL,
+        title varchar(100) NOT NULL,
+        phone varchar(20) NOT NULL,
+        department varchar(100),
+        monthly_target decimal(10,2) DEFAULT 0.00,
+        status varchar(20) DEFAULT 'active',
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id),
+        UNIQUE KEY user_id (user_id),
+        KEY status (status)
+    ) $charset_collate;";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql_representatives);
+
+    // Diğer tablolara representative_id kolonunu ekle
+    $wpdb->query("ALTER TABLE {$wpdb->prefix}insurance_crm_customers ADD COLUMN IF NOT EXISTS representative_id bigint(20) DEFAULT NULL");
+    $wpdb->query("ALTER TABLE {$wpdb->prefix}insurance_crm_customers ADD KEY IF NOT EXISTS representative_id (representative_id)");
+
+    $wpdb->query("ALTER TABLE {$wpdb->prefix}insurance_crm_policies ADD COLUMN IF NOT EXISTS representative_id bigint(20) DEFAULT NULL");
+    $wpdb->query("ALTER TABLE {$wpdb->prefix}insurance_crm_policies ADD KEY IF NOT EXISTS representative_id (representative_id)");
+
+    $wpdb->query("ALTER TABLE {$wpdb->prefix}insurance_crm_tasks ADD COLUMN IF NOT EXISTS representative_id bigint(20) DEFAULT NULL");
+    $wpdb->query("ALTER TABLE {$wpdb->prefix}insurance_crm_tasks ADD KEY IF NOT EXISTS representative_id (representative_id)");
+}
+register_activation_hook(__FILE__, 'insurance_crm_create_representatives_table');
+
+// Müşteri Temsilcisi tablosuna monthly_target kolonunu ekle
+function insurance_crm_add_monthly_target_column() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'insurance_crm_representatives';
+    $wpdb->query("ALTER TABLE $table_name ADD COLUMN monthly_target decimal(10,2) DEFAULT 0.00");
+}
+register_activation_hook(__FILE__, 'insurance_crm_add_monthly_target_column');
+
+
+/**
+ * Müşteri Temsilcisi menüsünü ekle
+ */
+function insurance_crm_add_representative_menu() {
+    add_submenu_page(
+        'insurance-crm',
+        'Müşteri Temsilcileri',
+        'Müşteri Temsilcileri',
+        'manage_insurance_crm',
+        'insurance-crm-representatives',
+        'insurance_crm_display_representatives_page'
+    );
+}
+add_action('admin_menu', 'insurance_crm_add_representative_menu');
+
+/**
+ * Müşteri Temsilcileri sayfasını görüntüle
+ */
+function insurance_crm_display_representatives_page() {
+    if (!current_user_can('manage_insurance_crm')) {
+        wp_die(__('Bu sayfaya erişim izniniz yok.'));
+    }
+
+    // Temsilci ekleme/düzenleme formu işleme
+    if (isset($_POST['submit_representative']) && isset($_POST['representative_nonce']) && 
+        wp_verify_nonce($_POST['representative_nonce'], 'add_edit_representative')) {
+        
+        $rep_data = array(
+            'first_name' => sanitize_text_field($_POST['first_name']),
+            'last_name' => sanitize_text_field($_POST['last_name']),
+            'email' => sanitize_email($_POST['email']),
+            'title' => sanitize_text_field($_POST['title']),
+            'phone' => sanitize_text_field($_POST['phone']),
+            'department' => sanitize_text_field($_POST['department'])
+        );
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'insurance_crm_representatives';
+
+        if (isset($_POST['rep_id']) && !empty($_POST['rep_id'])) {
+            // Güncelleme
+            $wpdb->update(
+                $table_name,
+                array(
+                    'title' => $rep_data['title'],
+                    'phone' => $rep_data['phone'],
+                    'department' => $rep_data['department'],
+                    'updated_at' => current_time('mysql')
+                ),
+                array('id' => intval($_POST['rep_id']))
+            );
+            echo '<div class="notice notice-success"><p>Müşteri temsilcisi güncellendi.</p></div>';
+        } else {
+            // Yeni temsilci ekleme
+            $user_id = insurance_crm_create_representative_user(0, $rep_data);
+            if ($user_id) {
+                $wpdb->insert(
+                    $table_name,
+                    array(
+                        'user_id' => $user_id,
+                        'title' => $rep_data['title'],
+                        'phone' => $rep_data['phone'],
+                        'department' => $rep_data['department'],
+                        'created_at' => current_time('mysql')
+                    )
+                );
+                $rep_id = $wpdb->insert_id;
+                update_user_meta($user_id, '_insurance_representative_id', $rep_id);
+                echo '<div class="notice notice-success"><p>Yeni müşteri temsilcisi eklendi.</p></div>';
+            }
+        }
+    }
+
+    // Silme işlemi
+    if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
+        if (isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'delete_representative_' . $_GET['id'])) {
+            global $wpdb;
+            $rep_id = intval($_GET['id']);
+            $table_name = $wpdb->prefix . 'insurance_crm_representatives';
+            
+            // Önce kullanıcıyı bul ve sil
+            $user_id = $wpdb->get_var($wpdb->prepare(
+                "SELECT user_id FROM $table_name WHERE id = %d",
+                $rep_id
+            ));
+            
+            if ($user_id) {
+                require_once(ABSPATH . 'wp-admin/includes/user.php');
+                wp_delete_user($user_id);
+            }
+            
+            // Sonra temsilci kaydını sil
+            $wpdb->delete($table_name, array('id' => $rep_id));
+            
+            echo '<div class="notice notice-success"><p>Müşteri temsilcisi silindi.</p></div>';
+        }
+    }
+
+    // Mevcut temsilcileri listele
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'insurance_crm_representatives';
+    $representatives = $wpdb->get_results(
+        "SELECT r.*, u.user_email as email, u.display_name 
+         FROM $table_name r 
+         LEFT JOIN {$wpdb->users} u ON r.user_id = u.ID 
+         WHERE r.status = 'active' 
+         ORDER BY r.created_at DESC"
+    );
+    ?>
+    <div class="wrap">
+        <h1>Müşteri Temsilcileri</h1>
+        
+         <div class="wrap">
+        <h1>Müşteri Temsilcileri</h1>
+        
+        <h2>Yeni Müşteri Temsilcisi Ekle</h2>
+        <form method="post" action="">
+            <?php wp_nonce_field('add_edit_representative', 'representative_nonce'); ?>
+            <table class="form-table">
+                <tr>
+                    <th><label for="username">Kullanıcı Adı</label></th>
+                    <td><input type="text" name="username" id="username" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th><label for="password">Şifre</label></th>
+                    <td>
+                        <input type="password" name="password" id="password" class="regular-text" required>
+                        <p class="description">En az 8 karakter uzunluğunda olmalıdır.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="confirm_password">Şifre (Tekrar)</label></th>
+                    <td><input type="password" name="confirm_password" id="confirm_password" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th><label for="first_name">Ad</label></th>
+                    <td><input type="text" name="first_name" id="first_name" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th><label for="last_name">Soyad</label></th>
+                    <td><input type="text" name="last_name" id="last_name" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th><label for="email">E-posta</label></th>
+                    <td><input type="email" name="email" id="email" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th><label for="title">Ünvan</label></th>
+                    <td><input type="text" name="title" id="title" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th><label for="phone">Telefon</label></th>
+                    <td><input type="tel" name="phone" id="phone" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th><label for="department">Departman</label></th>
+                    <td><input type="text" name="department" id="department" class="regular-text"></td>
+                </tr>
+<tr>
+    <th><label for="monthly_target">Aylık Hedef (₺)</label></th>
+    <td>
+        <input type="number" step="0.01" name="monthly_target" id="monthly_target" class="regular-text" required>
+        <p class="description">Temsilcinin aylık satış hedefi (₺)</p>
+    </td>
+</tr>
+            </table>
+            <p class="submit">
+                <input type="submit" name="submit_representative" class="button button-primary" value="Müşteri Temsilcisi Ekle">
+            </p>
+        </form>
+
+        <h2>Mevcut Müşteri Temsilcileri</h2>
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th>Ad Soyad</th>
+                    <th>E-posta</th>
+                    <th>Ünvan</th>
+                    <th>Telefon</th>
+                    <th>Departman</th>
+                    <th>İşlemler</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($representatives as $rep): ?>
+                <tr>
+                    <td><?php echo esc_html($rep->display_name); ?></td>
+                    <td><?php echo esc_html($rep->email); ?></td>
+                    <td><?php echo esc_html($rep->title); ?></td>
+                    <td><?php echo esc_html($rep->phone); ?></td>
+                    <td><?php echo esc_html($rep->department); ?></td>
+                    <td>
+                        <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=insurance-crm-representatives&action=delete&id=' . $rep->id), 'delete_representative_' . $rep->id); ?>" 
+                           class="button button-small" 
+                           onclick="return confirm('Bu müşteri temsilcisini silmek istediğinizden emin misiniz?');">
+                            Sil
+                        </a>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php
+}
+
+/**
+ * Sayfa şablonlarını kaydet
+ */
+function insurance_crm_create_pages() {
+    // Login sayfası
+    $login_page = array(
+        'post_title'    => 'Temsilci Girişi',
+        'post_content'  => '[insurance_crm_login]',
+        'post_status'   => 'publish',
+        'post_type'     => 'page',
+        'post_name'     => 'temsilci-girisi'
+    );
+    
+    // Panel sayfası
+    $panel_page = array(
+        'post_title'    => 'Temsilci Paneli',
+        'post_content'  => '[insurance_crm_panel]',
+        'post_status'   => 'publish',
+        'post_type'     => 'page',
+        'post_name'     => 'temsilci-paneli'
+    );
+
+    // Sayfaları oluştur
+    if (!get_page_by_path('temsilci-girisi')) {
+        wp_insert_post($login_page);
+    }
+    if (!get_page_by_path('temsilci-paneli')) {
+        wp_insert_post($panel_page);
+    }
+}
+register_activation_hook(__FILE__, 'insurance_crm_create_pages');
+
+/**
+ * Shortcode'ları ekle
+ */
+function insurance_crm_add_shortcodes() {
+    add_shortcode('insurance_crm_login', 'insurance_crm_login_shortcode');
+    add_shortcode('insurance_crm_panel', 'insurance_crm_panel_shortcode');
+}
+add_action('init', 'insurance_crm_add_shortcodes');
+
+/**
+ * Login sayfası shortcode
+ */
+function insurance_crm_login_shortcode() {
+    // Eğer kullanıcı zaten giriş yapmış ve müşteri temsilcisi ise panele yönlendir
+    if (is_user_logged_in()) {
+        $user = wp_get_current_user();
+        if (in_array('insurance_representative', (array)$user->roles)) {
+            wp_safe_redirect(home_url('/temsilci-paneli/'));
+            exit;
+        }
+    }
+
+    // Login template'i yükle
+    ob_start();
+    if (file_exists(plugin_dir_path(__FILE__) . 'templates/login.php')) {
+        include plugin_dir_path(__FILE__) . 'templates/login.php';
+    } else {
+        echo 'Login template bulunamadı.';
+    }
+    return ob_get_clean();
+}
+
+/**
+ * Panel sayfası shortcode
+ */
+function insurance_crm_panel_shortcode() {
+    // Kullanıcı giriş yapmamışsa login sayfasına yönlendir
+    if (!is_user_logged_in()) {
+        wp_safe_redirect(home_url('/temsilci-girisi/'));
+        exit;
+    }
+
+    // Kullanıcı müşteri temsilcisi değilse ana sayfaya yönlendir
+    $user = wp_get_current_user();
+    if (!in_array('insurance_representative', (array)$user->roles)) {
+        wp_safe_redirect(home_url());
+        exit;
+    }
+
+    // Panel template'i yükle
+    ob_start();
+    if (file_exists(plugin_dir_path(__FILE__) . 'templates/panel.php')) {
+        include plugin_dir_path(__FILE__) . 'templates/panel.php';
+    } else {
+        echo 'Panel template bulunamadı.';
+    }
+    return ob_get_clean();
+}
+
+/**
+ * Login işlemini yönet
+ */
+function insurance_crm_process_login() {
+    if (isset($_POST['insurance_crm_login'])) {
+        $username = sanitize_user($_POST['username']);
+        $password = $_POST['password'];
+        
+        $user = wp_authenticate($username, $password);
+        
+        if (is_wp_error($user)) {
+            wp_safe_redirect(add_query_arg('login', 'failed', home_url('/temsilci-girisi/')));
+            exit;
+        }
+        
+        if (!in_array('insurance_representative', (array)$user->roles)) {
+            wp_safe_redirect(add_query_arg('login', 'failed', home_url('/temsilci-girisi/')));
+            exit;
+        }
+        
+        wp_set_auth_cookie($user->ID);
+        wp_safe_redirect(home_url('/temsilci-paneli/'));
+        exit;
+    }
+}
+add_action('init', 'insurance_crm_process_login');
+
+// Shortcode'ları kaydet
+add_shortcode('insurance_crm_login', 'insurance_crm_login_shortcode');
+add_shortcode('insurance_crm_panel', 'insurance_crm_panel_shortcode');
