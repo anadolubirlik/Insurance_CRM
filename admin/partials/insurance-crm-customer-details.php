@@ -67,8 +67,69 @@ $tasks = $wpdb->get_results($wpdb->prepare("
     ORDER BY t.due_date ASC
 ", $customer_id));
 
+// Müşteri görüşme notlarını al
+$notes_table = $wpdb->prefix . 'insurance_crm_customer_notes';
+$customer_notes = $wpdb->get_results($wpdb->prepare("
+    SELECT n.*, 
+           u.display_name AS user_name
+    FROM $notes_table n
+    LEFT JOIN {$wpdb->users} u ON n.created_by = u.ID
+    WHERE n.customer_id = %d
+    ORDER BY n.created_at DESC
+", $customer_id));
+
 // Bugünün tarihi
 $today = date('Y-m-d H:i:s');
+
+// Not ekleme işlemi
+if (isset($_POST['add_customer_note']) && isset($_POST['note_nonce']) && 
+    wp_verify_nonce($_POST['note_nonce'], 'add_customer_note')) {
+    
+    $note_data = array(
+        'customer_id' => $customer_id,
+        'note_content' => sanitize_textarea_field($_POST['note_content']),
+        'note_type' => sanitize_text_field($_POST['note_type']),
+        'created_by' => get_current_user_id(),
+        'created_at' => current_time('mysql')
+    );
+    
+    // Eğer olumsuz not ise sebep alanını da ekle
+    if ($note_data['note_type'] === 'negative') {
+        $note_data['rejection_reason'] = sanitize_text_field($_POST['rejection_reason']);
+        
+        // Müşteri durumunu Pasif olarak güncelle
+        $wpdb->update(
+            $customers_table,
+            array('status' => 'pasif'),
+            array('id' => $customer_id)
+        );
+    }
+    // Olumlu not ise müşteriyi aktif yap
+    else if ($note_data['note_type'] === 'positive') {
+        $wpdb->update(
+            $customers_table,
+            array('status' => 'aktif'),
+            array('id' => $customer_id)
+        );
+    }
+    
+    $insert_result = $wpdb->insert(
+        $notes_table,
+        $note_data
+    );
+    
+    if ($insert_result !== false) {
+        echo '<div class="notice notice-success"><p>Görüşme notu başarıyla eklendi.</p></div>';
+        echo '<script>window.location.href = "' . admin_url('admin.php?page=insurance-crm-customer-details&id=' . $customer_id . '&note_added=1') . '";</script>';
+    } else {
+        echo '<div class="notice notice-error"><p>Görüşme notu eklenirken bir hata oluştu: ' . $wpdb->last_error . '</p></div>';
+    }
+}
+
+// İşlem mesajları
+if (isset($_GET['note_added']) && $_GET['note_added'] === '1') {
+    echo '<div class="notice notice-success"><p>Görüşme notu başarıyla eklendi.</p></div>';
+}
 ?>
 
 <div class="wrap">
@@ -86,6 +147,7 @@ $today = date('Y-m-d H:i:s');
     <hr class="wp-header-end">
     
     <div class="customer-details-container">
+        <!-- KİŞİSEL BİLGİLER -->
         <div class="customer-profile-card">
             <div class="card-header">
                 <h2>Kişisel Bilgiler</h2>
@@ -126,6 +188,55 @@ $today = date('Y-m-d H:i:s');
                     </div>
                     
                     <div class="info-item">
+                        <div class="label">Doğum Tarihi</div>
+                        <div class="value">
+                            <?php echo !empty($customer->birth_date) ? date('d.m.Y', strtotime($customer->birth_date)) : '<span class="no-value">Belirtilmemiş</span>'; ?>
+                        </div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="label">Cinsiyet</div>
+                        <div class="value">
+                            <?php 
+                            if (!empty($customer->gender)) {
+                                echo $customer->gender == 'male' ? 'Erkek' : 'Kadın';
+                            } else {
+                                echo '<span class="no-value">Belirtilmemiş</span>';
+                            }
+                            ?>
+                        </div>
+                    </div>
+                    
+                    <?php if ($customer->gender == 'female'): ?>
+                    <div class="info-item">
+                        <div class="label">Gebelik Durumu</div>
+                        <div class="value">
+                            <?php 
+                            if (isset($customer->is_pregnant)) {
+                                if ($customer->is_pregnant == 1) {
+                                    echo 'Evet';
+                                    if (!empty($customer->pregnancy_week)) {
+                                        echo ' (' . $customer->pregnancy_week . ' haftalık)';
+                                    }
+                                } else {
+                                    echo 'Hayır';
+                                }
+                            } else {
+                                echo '<span class="no-value">Belirtilmemiş</span>';
+                            }
+                            ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <div class="info-item">
+                        <div class="label">Meslek</div>
+                        <div class="value">
+                            <?php echo !empty($customer->occupation) ? esc_html($customer->occupation) : '<span class="no-value">Belirtilmemiş</span>'; ?>
+                        </div>
+                    </div>
+                    
+                    <div class="info-item">
                         <div class="label">Müşteri Temsilcisi</div>
                         <div class="value">
                             <?php if ($customer->rep_id): ?>
@@ -141,6 +252,199 @@ $today = date('Y-m-d H:i:s');
                     <div class="info-item">
                         <div class="label">Kayıt Tarihi</div>
                         <div class="value"><?php echo date('d.m.Y H:i', strtotime($customer->created_at)); ?></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- AİLE BİLGİLERİ -->
+        <div class="card family-card">
+            <div class="card-header">
+                <h2>Aile Bilgileri</h2>
+            </div>
+            
+            <div class="card-content">
+                <div class="family-info-grid">
+                    <div class="info-item">
+                        <div class="label">Eş</div>
+                        <div class="value">
+                            <?php echo !empty($customer->spouse_name) ? esc_html($customer->spouse_name) : '<span class="no-value">Belirtilmemiş</span>'; ?>
+                        </div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="label">Eşin Doğum Tarihi</div>
+                        <div class="value">
+                            <?php echo !empty($customer->spouse_birth_date) ? date('d.m.Y', strtotime($customer->spouse_birth_date)) : '<span class="no-value">Belirtilmemiş</span>'; ?>
+                        </div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="label">Çocuk Sayısı</div>
+                        <div class="value">
+                            <?php echo isset($customer->children_count) && $customer->children_count > 0 ? $customer->children_count : '<span class="no-value">0</span>'; ?>
+                        </div>
+                    </div>
+                    
+                    <?php if (!empty($customer->children_names) || !empty($customer->children_birth_dates)): ?>
+                    <div class="info-item wide">
+                        <div class="label">Çocuklar</div>
+                        <div class="value">
+                            <?php
+                            $children_names = !empty($customer->children_names) ? explode(',', $customer->children_names) : [];
+                            $children_birth_dates = !empty($customer->children_birth_dates) ? explode(',', $customer->children_birth_dates) : [];
+                            
+                            if (!empty($children_names)) {
+                                echo '<ul class="children-list">';
+                                for ($i = 0; $i < count($children_names); $i++) {
+                                    echo '<li>' . esc_html(trim($children_names[$i]));
+                                    if (isset($children_birth_dates[$i]) && !empty(trim($children_birth_dates[$i]))) {
+                                        echo ' - Doğum Tarihi: ' . date('d.m.Y', strtotime(trim($children_birth_dates[$i])));
+                                    }
+                                    echo '</li>';
+                                }
+                                echo '</ul>';
+                            } else {
+                                echo '<span class="no-value">Belirtilmemiş</span>';
+                            }
+                            ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        
+        <!-- VARLIK BİLGİLERİ -->
+        <div class="card assets-card">
+            <div class="card-header">
+                <h2>Varlık Bilgileri</h2>
+            </div>
+            
+            <div class="card-content">
+                <div class="assets-info-grid">
+                    <!-- EV BİLGİLERİ -->
+                    <div class="info-group">
+                        <h3>Ev Bilgileri</h3>
+                        <div class="info-item">
+                            <div class="label">Evi Kendisine mi Ait?</div>
+                            <div class="value">
+                                <?php 
+                                if (isset($customer->owns_home)) {
+                                    echo $customer->owns_home == 1 ? 'Evet' : 'Hayır';
+                                } else {
+                                    echo '<span class="no-value">Belirtilmemiş</span>';
+                                }
+                                ?>
+                            </div>
+                        </div>
+                        
+                        <?php if (isset($customer->owns_home) && $customer->owns_home == 1): ?>
+                        <div class="info-item">
+                            <div class="label">DASK Poliçesi</div>
+                            <div class="value">
+                                <?php 
+                                if (isset($customer->has_dask_policy)) {
+                                    if ($customer->has_dask_policy == 1) {
+                                        echo 'Var';
+                                        if (!empty($customer->dask_policy_expiry)) {
+                                            echo ' (Vade: ' . date('d.m.Y', strtotime($customer->dask_policy_expiry)) . ')';
+                                        }
+                                    } else {
+                                        echo 'Yok';
+                                    }
+                                } else {
+                                    echo '<span class="no-value">Belirtilmemiş</span>';
+                                }
+                                ?>
+                            </div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <div class="label">Konut Poliçesi</div>
+                            <div class="value">
+                                <?php 
+                                if (isset($customer->has_home_policy)) {
+                                    if ($customer->has_home_policy == 1) {
+                                        echo 'Var';
+                                        if (!empty($customer->home_policy_expiry)) {
+                                            echo ' (Vade: ' . date('d.m.Y', strtotime($customer->home_policy_expiry)) . ')';
+                                        }
+                                    } else {
+                                        echo 'Yok';
+                                    }
+                                } else {
+                                    echo '<span class="no-value">Belirtilmemiş</span>';
+                                }
+                                ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <!-- ARAÇ BİLGİLERİ -->
+                    <div class="info-group">
+                        <h3>Araç Bilgileri</h3>
+                        <div class="info-item">
+                            <div class="label">Aracı Var mı?</div>
+                            <div class="value">
+                                <?php 
+                                if (isset($customer->has_vehicle)) {
+                                    echo $customer->has_vehicle == 1 ? 'Evet' : 'Hayır';
+                                } else {
+                                    echo '<span class="no-value">Belirtilmemiş</span>';
+                                }
+                                ?>
+                            </div>
+                        </div>
+                        
+                        <?php if (isset($customer->has_vehicle) && $customer->has_vehicle == 1): ?>
+                        <div class="info-item">
+                            <div class="label">Araç Plakası</div>
+                            <div class="value">
+                                <?php echo !empty($customer->vehicle_plate) ? esc_html($customer->vehicle_plate) : '<span class="no-value">Belirtilmemiş</span>'; ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <!-- EVCİL HAYVAN BİLGİLERİ -->
+                    <div class="info-group">
+                        <h3>Evcil Hayvan Bilgileri</h3>
+                        <div class="info-item">
+                            <div class="label">Evcil Hayvanı Var mı?</div>
+                            <div class="value">
+                                <?php 
+                                if (isset($customer->has_pet)) {
+                                    echo $customer->has_pet == 1 ? 'Evet' : 'Hayır';
+                                } else {
+                                    echo '<span class="no-value">Belirtilmemiş</span>';
+                                }
+                                ?>
+                            </div>
+                        </div>
+                        
+                        <?php if (isset($customer->has_pet) && $customer->has_pet == 1): ?>
+                        <div class="info-item">
+                            <div class="label">Evcil Hayvan Bilgisi</div>
+                            <div class="value">
+                                <?php
+                                $pet_info = [];
+                                if (!empty($customer->pet_name)) {
+                                    $pet_info[] = 'Adı: ' . esc_html($customer->pet_name);
+                                }
+                                if (!empty($customer->pet_type)) {
+                                    $pet_info[] = 'Cinsi: ' . esc_html($customer->pet_type);
+                                }
+                                if (!empty($customer->pet_age)) {
+                                    $pet_info[] = 'Yaşı: ' . esc_html($customer->pet_age);
+                                }
+                                
+                                echo !empty($pet_info) ? implode(', ', $pet_info) : '<span class="no-value">Detay belirtilmemiş</span>';
+                                ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -285,51 +589,99 @@ $today = date('Y-m-d H:i:s');
             </div>
         </div>
         
-        <!-- NOTLAR VE ETKİNLİKLER SEKSİYONU -->
-        <div class="card activity-card">
+        <!-- GÖRÜŞME NOTLARI -->
+        <div class="card notes-card">
             <div class="card-header">
-                <h2>İşlem Geçmişi</h2>
+                <h2>Görüşme Notları</h2>
+                <span class="notes-count"><?php echo count($customer_notes); ?> not</span>
             </div>
             
             <div class="card-content">
-                <div class="timeline">
-                    <div class="timeline-item">
-                        <div class="timeline-icon">
-                            <i class="dashicons dashicons-admin-users"></i>
+                <!-- Not Ekleme Formu -->
+                <div class="add-note-container">
+                    <h3>Yeni Görüşme Notu Ekle</h3>
+                    <form method="post" action="" class="add-note-form">
+                        <?php wp_nonce_field('add_customer_note', 'note_nonce'); ?>
+                        
+                        <div class="form-row">
+                            <label for="note_content">Görüşme Notu</label>
+                            <textarea name="note_content" id="note_content" rows="4" required></textarea>
                         </div>
-                        <div class="timeline-content">
-                            <h3>Müşteri Kaydedildi</h3>
-                            <p class="timeline-date"><?php echo date('d.m.Y H:i', strtotime($customer->created_at)); ?></p>
+                        
+                        <div class="form-row">
+                            <label for="note_type">Görüşme Sonucu</label>
+                            <select name="note_type" id="note_type" required>
+                                <option value="">Seçiniz</option>
+                                <option value="positive">Olumlu</option>
+                                <option value="neutral">Durumu Belirsiz</option>
+                                <option value="negative">Olumsuz</option>
+                            </select>
                         </div>
-                    </div>
-                    
-                    <?php foreach ($policies as $policy): ?>
-                    <div class="timeline-item">
-                        <div class="timeline-icon">
-                            <i class="dashicons dashicons-media-document"></i>
+                        
+                        <div id="rejection_reason_container" style="display:none;">
+                            <div class="form-row">
+                                <label for="rejection_reason">Olumsuz Olma Nedeni</label>
+                                <select name="rejection_reason" id="rejection_reason">
+                                    <option value="">Seçiniz</option>
+                                    <option value="price">Fiyat</option>
+                                    <option value="wrong_application">Yanlış Başvuru</option>
+                                    <option value="existing_policy">Mevcut Poliçesi Var</option>
+                                    <option value="other">Diğer</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="timeline-content">
-                            <h3>Poliçe Eklendi: <?php echo esc_html($policy->policy_number); ?></h3>
-                            <p><?php echo esc_html($policy->policy_type); ?> poliçesi kaydedildi.</p>
-                            <p class="timeline-date"><?php echo date('d.m.Y H:i', strtotime($policy->created_at)); ?></p>
+                        
+                        <div class="form-buttons">
+                            <button type="submit" name="add_customer_note" class="button button-primary">Not Ekle</button>
                         </div>
-                    </div>
-                    <?php endforeach; ?>
-                    
-                    <?php foreach ($tasks as $task): 
-                        if ($task->status === 'completed'):
-                    ?>
-                    <div class="timeline-item">
-                        <div class="timeline-icon">
-                            <i class="dashicons dashicons-yes-alt"></i>
-                        </div>
-                        <div class="timeline-content">
-                            <h3>Görev Tamamlandı</h3>
-                            <p><?php echo esc_html($task->task_description); ?></p>
-                            <p class="timeline-date"><?php echo date('d.m.Y H:i', strtotime($task->updated_at)); ?></p>
-                        </div>
-                    </div>
-                    <?php endif; endforeach; ?>
+                    </form>
+                </div>
+                
+                <hr>
+                
+                <!-- Notlar Listesi -->
+                <div class="notes-list">
+                    <?php if (empty($customer_notes)): ?>
+                        <div class="empty-message">Henüz görüşme notu bulunmuyor.</div>
+                    <?php else: ?>
+                        <?php foreach ($customer_notes as $note): ?>
+                            <div class="note-item note-type-<?php echo esc_attr($note->note_type); ?>">
+                                <div class="note-header">
+                                    <div class="note-meta">
+                                        <span class="note-author"><?php echo esc_html($note->user_name); ?></span>
+                                        <span class="note-date"><?php echo date('d.m.Y H:i', strtotime($note->created_at)); ?></span>
+                                    </div>
+                                    <span class="note-type-badge <?php echo esc_attr($note->note_type); ?>">
+                                        <?php 
+                                            switch ($note->note_type) {
+                                                case 'positive': echo 'Olumlu'; break;
+                                                case 'neutral': echo 'Belirsiz'; break;
+                                                case 'negative': echo 'Olumsuz'; break;
+                                                default: echo ucfirst($note->note_type); break;
+                                            }
+                                        ?>
+                                    </span>
+                                </div>
+                                <div class="note-content">
+                                    <?php echo nl2br(esc_html($note->note_content)); ?>
+                                </div>
+                                <?php if ($note->note_type === 'negative' && !empty($note->rejection_reason)): ?>
+                                    <div class="note-reason">
+                                        <strong>Sebep:</strong> 
+                                        <?php 
+                                            switch ($note->rejection_reason) {
+                                                case 'price': echo 'Fiyat'; break;
+                                                case 'wrong_application': echo 'Yanlış Başvuru'; break;
+                                                case 'existing_policy': echo 'Mevcut Poliçesi Var'; break;
+                                                case 'other': echo 'Diğer'; break;
+                                                default: echo ucfirst($note->rejection_reason); break;
+                                            }
+                                        ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -395,6 +747,7 @@ $today = date('Y-m-d H:i:s');
     border-radius: 5px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     overflow: hidden;
+    margin-bottom: 20px;
 }
 
 .card-header {
@@ -417,7 +770,9 @@ $today = date('Y-m-d H:i:s');
 }
 
 /* Bilgi grid */
-.customer-info-grid {
+.customer-info-grid,
+.family-info-grid,
+.assets-info-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
@@ -441,6 +796,30 @@ $today = date('Y-m-d H:i:s');
 .no-value {
     color: #999;
     font-style: italic;
+}
+
+/* Bilgi grupları */
+.info-group {
+    margin-bottom: 20px;
+}
+
+.info-group h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 600;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #f0f0f0;
+    color: #555;
+}
+
+/* Çocuk listeleri */
+.children-list {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.children-list li {
+    margin-bottom: 5px;
 }
 
 /* Poliçe ve görev listeleri */
@@ -563,68 +942,106 @@ $today = date('Y-m-d H:i:s');
     vertical-align: middle;
 }
 
-/* Zaman çizelgesi */
-.timeline {
-    position: relative;
-    margin: 0 0 30px;
-    padding: 0;
-    list-style: none;
+/* Not ekleme formu */
+.add-note-container {
+    margin-bottom: 20px;
 }
 
-.timeline:before {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #ddd;
-    left: 25px;
-    margin-left: -1px;
+.add-note-form .form-row {
+    margin-bottom: 15px;
 }
 
-.timeline-item {
-    position: relative;
-    margin-bottom: 25px;
-    display: flex;
+.add-note-form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
 }
 
-.timeline-icon {
-    width: 50px;
-    height: 50px;
-    background: #f0f0f0;
-    border-radius: 50%;
-    text-align: center;
-    line-height: 50px;
-    margin-right: 25px;
-    z-index: 1;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+.add-note-form textarea,
+.add-note-form select {
+    width: 100%;
 }
 
-.timeline-icon .dashicons {
-    font-size: 20px;
-    line-height: 50px;
-    color: #555;
-}
-
-.timeline-content {
-    flex: 1;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 5px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-.timeline-content h3 {
-    margin: 0 0 10px;
-    font-size: 16px;
-    font-weight: 600;
-}
-
-.timeline-date {
-    color: #777;
-    font-size: 0.9em;
+.form-buttons {
     margin-top: 10px;
-    font-style: italic;
+}
+
+/* Not listesi */
+.notes-list {
+    margin-top: 20px;
+}
+
+.note-item {
+    background: #f9f9f9;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-left: 4px solid #ddd;
+}
+
+.note-item.note-type-positive {
+    border-left-color: #4CAF50;
+}
+
+.note-item.note-type-neutral {
+    border-left-color: #2196F3;
+}
+
+.note-item.note-type-negative {
+    border-left-color: #F44336;
+}
+
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.note-meta {
+    font-size: 12px;
+    color: #666;
+}
+
+.note-author {
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+.note-type-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.note-type-badge.positive {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.note-type-badge.neutral {
+    background-color: #e3f2fd;
+    color: #1565c0;
+}
+
+.note-type-badge.negative {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+.note-content {
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.note-reason {
+    font-size: 12px;
+    color: #555;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #eee;
 }
 
 /* Responsive tasarım */
@@ -637,8 +1054,31 @@ $today = date('Y-m-d H:i:s');
         grid-column: 1;
     }
     
-    .policy-card, .tasks-card, .activity-card {
+    .family-card {
+        grid-column: 2;
+    }
+    
+    .assets-card {
+        grid-column: 1;
+    }
+    
+    .policy-card, .tasks-card, .notes-card {
         grid-column: 1 / -1;
     }
 }
 </style>
+
+<script>
+jQuery(document).ready(function($) {
+    // Not türü değiştiğinde, olumsuz olma sebebi göster/gizle
+    $('#note_type').on('change', function() {
+        if ($(this).val() === 'negative') {
+            $('#rejection_reason_container').show();
+            $('#rejection_reason').prop('required', true);
+        } else {
+            $('#rejection_reason_container').hide();
+            $('#rejection_reason').prop('required', false);
+        }
+    });
+});
+</script>
