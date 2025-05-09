@@ -74,6 +74,11 @@ register_deactivation_hook(__FILE__, 'deactivate_insurance_crm');
 require plugin_dir_path(__FILE__) . 'includes/class-insurance-crm.php';
 
 /**
+ * Yardımcı fonksiyonları dahil et
+ */
+require_once plugin_dir_path(__FILE__) . 'includes/functions.php';
+
+/**
  * Begins execution of the plugin.
  */
 function run_insurance_crm() {
@@ -1389,18 +1394,33 @@ function insurance_crm_dashboard() {
  * 1.0.3 versiyonunda güncellenen müşteriler sayfası
  */
 function insurance_crm_customers() {
-    // Müşteri düzenleme sayfasını kontrol et
+    // Müşteri ayrıntıları sayfası
+    if (isset($_GET['action']) && $_GET['action'] === 'view' && isset($_GET['id'])) {
+        if (file_exists(INSURANCE_CRM_PATH . 'admin/partials/insurance-crm-customer-view.php')) {
+            require_once INSURANCE_CRM_PATH . 'admin/partials/insurance-crm-customer-view.php';
+            return;
+        }
+    }
+    
+    // Müşteri düzenleme sayfası
     if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id'])) {
         if (file_exists(INSURANCE_CRM_PATH . 'admin/partials/insurance-crm-customer-edit.php')) {
             require_once INSURANCE_CRM_PATH . 'admin/partials/insurance-crm-customer-edit.php';
+            return;
         } else {
             require_once INSURANCE_CRM_PATH . 'admin/partials/insurance-crm-admin-customers.php';
         }
+    } else if (isset($_GET['action']) && $_GET['action'] === 'new') {
+        // Yeni müşteri ekleme
+        if (file_exists(INSURANCE_CRM_PATH . 'admin/partials/insurance-crm-customer-edit.php')) {
+            require_once INSURANCE_CRM_PATH . 'admin/partials/insurance-crm-customer-edit.php';
+            return;
+        }
     } else {
+        // Varsayılan müşteri listesi
         require_once INSURANCE_CRM_PATH . 'admin/partials/insurance-crm-admin-customers.php';
     }
 }
-
 function insurance_crm_policies() {
     require_once INSURANCE_CRM_PATH . 'admin/partials/insurance-crm-admin-policies.php';
 }
