@@ -5,24 +5,29 @@
  * @package    Insurance_CRM
  * @subpackage Insurance_CRM/admin/partials
  * @author     Anadolu Birlik
- * @since      1.0.0 (2025-05-02)
+ * @since      1.0.3
  */
 
 if (!defined('WPINC')) {
     die;
 }
 
-$action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : 'list';
-$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-$customer = new Insurance_CRM_Customer();
+// Düzenleme işlemi için müşteri ID'sini kontrol et
+$customer_id = isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id']) ? intval($_GET['id']) : 0;
+$editing = ($customer_id > 0);
 
-// Form gönderildiğinde
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['insurance_crm_nonce'])) {
-    if (!wp_verify_nonce($_POST['insurance_crm_nonce'], 'insurance_crm_save_customer')) {
-        wp_die(__('Güvenlik doğrulaması başarısız', 'insurance-crm'));
-    }
+// Düzenleme işlemi için müşteri düzenleme sayfasına yönlendir
+if ($editing) {
+    // Müşteri düzenleme sayfasına bırak - buradan sonraki kodlar çalışmayacak
+    require_once INSURANCE_CRM_PATH . 'admin/partials/insurance-crm-customer-edit.php';
+    return; // Bu satırı sonrasında kalan kodlar çalışmayacak
+}
 
-    $data = array(
+// Yeni müşteri ekleme işlemi
+if (isset($_POST['submit_customer']) && isset($_POST['customer_nonce']) && 
+    wp_verify_nonce($_POST['customer_nonce'], 'add_customer')) {
+    
+    $customer_data = array(
         'first_name' => sanitize_text_field($_POST['first_name']),
         'last_name' => sanitize_text_field($_POST['last_name']),
         'tc_identity' => sanitize_text_field($_POST['tc_identity']),
@@ -31,320 +36,275 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['insurance_crm_nonce']
         'address' => sanitize_textarea_field($_POST['address']),
         'category' => sanitize_text_field($_POST['category']),
         'status' => sanitize_text_field($_POST['status']),
-        'representative_id' => isset($_POST['representative_id']) ? intval($_POST['representative_id']) : null
+        'representative_id' => isset($_POST['representative_id']) ? intval($_POST['representative_id']) : NULL,
+        'created_at' => current_time('mysql'),
+        'updated_at' => current_time('mysql')
     );
-
-    if ($id > 0) {
-        $result = $customer->update($id, $data);
+    
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'insurance_crm_customers';
+    
+    $wpdb->insert($table_name, $customer_data);
+    $new_customer_id = $wpdb->insert_id;
+    
+    if ($new_customer_id) {
+        echo '<div class="updated"><p>Müşteri başarıyla eklendi.</p></div>';
     } else {
-        $result = $customer->add($data);
-    }
-
-    if (is_wp_error($result)) {
-        $error_message = $result->get_error_message();
-    } else {
-        wp_redirect(admin_url('admin.php?page=insurance-crm-customers&message=' . ($id ? 'updated' : 'added')));
-        exit;
+        echo '<div class="error"><p>Müşteri eklenirken bir hata oluştu.</p></div>';
     }
 }
 
-// Mesaj gösterimi
-if (isset($_GET['message'])) {
-    $message = '';
-    switch ($_GET['message']) {
-        case 'added':
-            $message = __('Müşteri başarıyla eklendi.', 'insurance-crm');
-            break;
-        case 'updated':
-            $message = __('Müşteri başarıyla güncellendi.', 'insurance-crm');
-            break;
-        case 'deleted':
-            $message = __('Müşteri başarıyla silindi.', 'insurance-crm');
-            break;
-    }
-    if ($message) {
-        echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
+// Silme işlemi
+if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
+    if (isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'delete_customer_' . $_GET['id'])) {
+        global $wpdb;
+        $customer_id = intval($_GET['id']);
+        $table_name = $wpdb->prefix . 'insurance_crm_customers';
+        
+        $wpdb->delete($table_name, array('id' => $customer_id));
+        echo '<div class="updated"><p>Müşteri silindi.</p></div>';
     }
 }
 
-// Hata gösterimi
-if (isset($error_message)) {
-    echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($error_message) . '</p></div>';
+// Arama işlemi
+$search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+
+// Müşterileri listele
+global $wpdb;
+$table_name = $wpdb->prefix . 'insurance_crm_customers';
+$table_reps = $wpdb->prefix . 'insurance_crm_representatives';
+$table_users = $wpdb->users;
+
+$query = "
+    SELECT c.*, u.display_name as representative_name
+    FROM $table_name c
+    LEFT JOIN $table_reps r ON c.representative_id = r.id
+    LEFT JOIN $table_users u ON r.user_id = u.ID
+";
+
+if (!empty($search)) {
+    $query .= $wpdb->prepare(
+        " WHERE c.first_name LIKE %s OR c.last_name LIKE %s OR c.tc_identity LIKE %s OR c.email LIKE %s OR c.phone LIKE %s",
+        '%' . $wpdb->esc_like($search) . '%',
+        '%' . $wpdb->esc_like($search) . '%',
+        '%' . $wpdb->esc_like($search) . '%',
+        '%' . $wpdb->esc_like($search) . '%',
+        '%' . $wpdb->esc_like($search) . '%'
+    );
 }
+
+$query .= " ORDER BY c.id DESC";
+
+$customers = $wpdb->get_results($query);
+
+// Müşteri temsilcilerini al
+$representatives = $wpdb->get_results("
+    SELECT r.id, u.display_name 
+    FROM $table_reps r
+    JOIN $table_users u ON r.user_id = u.ID
+    WHERE r.status = 'active'
+    ORDER BY u.display_name ASC
+");
 ?>
 
-<div class="wrap insurance-crm-wrap">
-    <div class="insurance-crm-header">
-        <h1>
-            <?php 
-            if ($action === 'new') {
-                _e('Yeni Müşteri', 'insurance-crm');
-            } elseif ($action === 'edit') {
-                _e('Müşteri Düzenle', 'insurance-crm');
-            } else {
-                _e('Müşteriler', 'insurance-crm');
-            }
-            ?>
-        </h1>
-        <?php if ($action === 'list'): ?>
-            <a href="<?php echo admin_url('admin.php?page=insurance-crm-customers&action=new'); ?>" class="page-title-action">
-                <?php _e('Yeni Ekle', 'insurance-crm'); ?>
-            </a>
-        <?php endif; ?>
-    </div>
-
-    <?php if ($action === 'list'): ?>
-        
-        <!-- Filtre Formu -->
-        <div class="tablenav top">
-            <form method="get" class="insurance-crm-filter-form">
-                <input type="hidden" name="page" value="insurance-crm-customers">
-                
-                <div class="alignleft actions">
-                    <input type="search" name="s" value="<?php echo isset($_GET['s']) ? esc_attr($_GET['s']) : ''; ?>" placeholder="<?php _e('Müşteri Ara...', 'insurance-crm'); ?>">
-                    
-                    <select name="category">
-                        <option value=""><?php _e('Tüm Kategoriler', 'insurance-crm'); ?></option>
-                        <option value="bireysel" <?php selected(isset($_GET['category']) ? $_GET['category'] : '', 'bireysel'); ?>><?php _e('Bireysel', 'insurance-crm'); ?></option>
-                        <option value="kurumsal" <?php selected(isset($_GET['category']) ? $_GET['category'] : '', 'kurumsal'); ?>><?php _e('Kurumsal', 'insurance-crm'); ?></option>
-                    </select>
-                    
-                    <select name="status">
-                        <option value=""><?php _e('Tüm Durumlar', 'insurance-crm'); ?></option>
-                        <option value="aktif" <?php selected(isset($_GET['status']) ? $_GET['status'] : '', 'aktif'); ?>><?php _e('Aktif', 'insurance-crm'); ?></option>
-                        <option value="pasif" <?php selected(isset($_GET['status']) ? $_GET['status'] : '', 'pasif'); ?>><?php _e('Pasif', 'insurance-crm'); ?></option>
-                    </select>
-                    
-                    <?php submit_button(__('Filtrele', 'insurance-crm'), 'action', '', false); ?>
-                </div>
-            </form>
-        </div>
-
-        <!-- Müşteri Listesi -->
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
+<div class="wrap">
+    <h1 class="wp-heading-inline">Müşteriler</h1>
+    <a href="<?php echo admin_url('admin.php?page=insurance-crm-customers&action=new'); ?>" class="page-title-action">Yeni Ekle</a>
+    
+    <hr class="wp-header-end">
+    
+    <form method="get">
+        <input type="hidden" name="page" value="insurance-crm-customers">
+        <p class="search-box">
+            <label class="screen-reader-text" for="customer-search-input">Müşteri ara:</label>
+            <input type="search" id="customer-search-input" name="s" value="<?php echo esc_attr($search); ?>" placeholder="Ad, soyad, TC, telefon veya e-posta">
+            <input type="submit" id="search-submit" class="button" value="Ara">
+        </p>
+    </form>
+    
+    <table class="wp-list-table widefat fixed striped customers">
+        <thead>
+            <tr>
+                <th>Ad Soyad</th>
+                <th>TC Kimlik</th>
+                <th>E-posta</th>
+                <th>Telefon</th>
+                <th>Kategori</th>
+                <th>Durum</th>
+                <th>Temsilci</th>
+                <th>İşlemler</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (empty($customers)): ?>
                 <tr>
-                    <th><?php _e('Ad Soyad', 'insurance-crm'); ?></th>
-                    <th><?php _e('TC Kimlik', 'insurance-crm'); ?></th>
-                    <th><?php _e('E-posta', 'insurance-crm'); ?></th>
-                    <th><?php _e('Telefon', 'insurance-crm'); ?></th>
-                    <th><?php _e('Kategori', 'insurance-crm'); ?></th>
-                    <th><?php _e('Durum', 'insurance-crm'); ?></th>
-                    <th><?php _e('Müşteri Temsilcisi', 'insurance-crm'); ?></th>
-                    <th><?php _e('Poliçeler', 'insurance-crm'); ?></th>
-                    <th><?php _e('İşlemler', 'insurance-crm'); ?></th>
+                    <td colspan="8">Hiç müşteri bulunamadı.</td>
                 </tr>
-            </thead>
-            <tbody>
-                <?php
-                $args = array(
-                    'search' => isset($_GET['s']) ? $_GET['s'] : '',
-                    'category' => isset($_GET['category']) ? $_GET['category'] : '',
-                    'status' => isset($_GET['status']) ? $_GET['status'] : ''
-                );
-                
-                $customers = $customer->get_all($args);
-                
-                if (!empty($customers)):
-                    foreach ($customers as $item):
-                        $edit_url = admin_url('admin.php?page=insurance-crm-customers&action=edit&id=' . $item->id);
-                        $delete_url = wp_nonce_url(admin_url('admin.php?page=insurance-crm-customers&action=delete&id=' . $item->id), 'delete_customer_' . $item->id);
-                ?>
+            <?php else: ?>
+                <?php foreach ($customers as $customer): ?>
                     <tr>
                         <td>
-                            <strong><a href="<?php echo $edit_url; ?>"><?php echo esc_html($item->first_name . ' ' . $item->last_name); ?></a></strong>
+                            <strong><a href="<?php echo admin_url('admin.php?page=insurance-crm-customers&action=edit&id=' . $customer->id); ?>"><?php echo esc_html($customer->first_name . ' ' . $customer->last_name); ?></a></strong>
                         </td>
-                        <td><?php echo esc_html($item->tc_identity); ?></td>
-                        <td><?php echo esc_html($item->email); ?></td>
-                        <td><?php echo esc_html($item->phone); ?></td>
-                        <td>
-                            <?php
-                            $category_class = $item->category === 'kurumsal' ? 'insurance-crm-badge-warning' : 'insurance-crm-badge-success';
-                            echo '<span class="insurance-crm-badge ' . $category_class . '">' . esc_html($item->category) . '</span>';
-                            ?>
-                        </td>
-                        <td>
-                            <?php
-                            $status_class = $item->status === 'aktif' ? 'insurance-crm-badge-success' : 'insurance-crm-badge-danger';
-                            echo '<span class="insurance-crm-badge ' . $status_class . '">' . esc_html($item->status) . '</span>';
-                            ?>
-                        </td>
+                        <td><?php echo esc_html($customer->tc_identity); ?></td>
+                        <td><?php echo esc_html($customer->email); ?></td>
+                        <td><?php echo esc_html($customer->phone); ?></td>
                         <td>
                             <?php 
-                            if (!empty($item->representative_id)) {
-                                global $wpdb;
-                                $representative = $wpdb->get_row($wpdb->prepare("
-                                    SELECT r.*, u.display_name 
-                                    FROM {$wpdb->prefix}insurance_crm_representatives r
-                                    JOIN {$wpdb->users} u ON r.user_id = u.ID
-                                    WHERE r.id = %d
-                                ", $item->representative_id));
-                                echo $representative ? esc_html($representative->display_name) : '-';
+                            if ($customer->category == 'bireysel') {
+                                echo '<span class="customer-category bireysel">Bireysel</span>';
                             } else {
-                                echo '-';
+                                echo '<span class="customer-category kurumsal">Kurumsal</span>';
                             }
                             ?>
                         </td>
                         <td>
-                            <?php
-                            $policy = new Insurance_CRM_Policy();
-                            $policy_count = count($policy->get_all(array('customer_id' => $item->id)));
-                            echo '<a href="' . admin_url('admin.php?page=insurance-crm-policies&customer_id=' . $item->id) . '">' . 
-                                 sprintf(__('%d poliçe', 'insurance-crm'), $policy_count) . '</a>';
+                            <?php 
+                            if ($customer->status == 'aktif') {
+                                echo '<span class="customer-status aktif">Aktif</span>';
+                            } else {
+                                echo '<span class="customer-status pasif">Pasif</span>';
+                            }
                             ?>
                         </td>
+                        <td><?php echo esc_html($customer->representative_name ? $customer->representative_name : '—'); ?></td>
                         <td>
-                            <a href="<?php echo $edit_url; ?>" class="button button-small"><?php _e('Düzenle', 'insurance-crm'); ?></a>
-                            <a href="<?php echo $delete_url; ?>" class="button button-small button-link-delete insurance-crm-delete" onclick="return confirm('<?php _e('Bu müşteriyi silmek istediğinizden emin misiniz?', 'insurance-crm'); ?>')">
-                                <?php _e('Sil', 'insurance-crm'); ?>
-                            </a>
+                            <a href="<?php echo admin_url('admin.php?page=insurance-crm-customers&action=edit&id=' . $customer->id); ?>" class="button button-small">Düzenle</a>
+                            <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=insurance-crm-customers&action=delete&id=' . $customer->id), 'delete_customer_' . $customer->id); ?>" class="button button-small delete-customer" data-customer-name="<?php echo esc_attr($customer->first_name . ' ' . $customer->last_name); ?>" onclick="return confirm('<?php echo esc_attr($customer->first_name . ' ' . $customer->last_name); ?> müşterisini silmek istediğinizden emin misiniz?');">Sil</a>
                         </td>
                     </tr>
-                <?php
-                    endforeach;
-                else:
-                ?>
-                    <tr>
-                        <td colspan="9"><?php _e('Müşteri bulunamadı.', 'insurance-crm'); ?></td>
-                    </tr>
-                <?php endif; ?>
-            </tbody>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
+
+    <?php if (isset($_GET['action']) && $_GET['action'] === 'new'): ?>
+    <hr>
+    <h2>Yeni Müşteri</h2>
+    <form method="post" action="">
+        <?php wp_nonce_field('add_customer', 'customer_nonce'); ?>
+        
+        <table class="form-table">
+            <tr>
+                <th><label for="first_name">Ad <span class="required">*</span></label></th>
+                <td><input type="text" id="first_name" name="first_name" class="regular-text" required></td>
+            </tr>
+            <tr>
+                <th><label for="last_name">Soyad <span class="required">*</span></label></th>
+                <td><input type="text" id="last_name" name="last_name" class="regular-text" required></td>
+            </tr>
+            <tr>
+                <th><label for="tc_identity">TC Kimlik No <span class="required">*</span></label></th>
+                <td><input type="text" id="tc_identity" name="tc_identity" class="regular-text" required></td>
+            </tr>
+            <tr>
+                <th><label for="email">E-posta <span class="required">*</span></label></th>
+                <td><input type="email" id="email" name="email" class="regular-text" required></td>
+            </tr>
+            <tr>
+                <th><label for="phone">Telefon <span class="required">*</span></label></th>
+                <td><input type="tel" id="phone" name="phone" class="regular-text" required></td>
+            </tr>
+            <tr>
+                <th><label for="address">Adres</label></th>
+                <td><textarea id="address" name="address" rows="4" cols="50"></textarea></td>
+            </tr>
+            <tr>
+                <th><label for="category">Kategori</label></th>
+                <td>
+                    <select id="category" name="category">
+                        <option value="bireysel">Bireysel</option>
+                        <option value="kurumsal">Kurumsal</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="status">Durum</label></th>
+                <td>
+                    <select id="status" name="status">
+                        <option value="aktif">Aktif</option>
+                        <option value="pasif">Pasif</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="representative_id">Müşteri Temsilcisi</label></th>
+                <td>
+                    <select id="representative_id" name="representative_id">
+                        <option value="">Seçiniz</option>
+                        <?php foreach ($representatives as $rep): ?>
+                            <option value="<?php echo esc_attr($rep->id); ?>">
+                                <?php echo esc_html($rep->display_name); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </td>
+            </tr>
         </table>
-
-    <?php else: ?>
         
-        <!-- Müşteri Formu -->
-        <?php
-        $customer_data = new stdClass();
-        if ($action === 'edit') {
-            $customer_data = $customer->get($id);
-            if (!$customer_data) {
-                wp_die(__('Müşteri bulunamadı.', 'insurance-crm'));
-            }
-        }
-        ?>
-        
-        <form method="post" class="insurance-crm-form">
-            <?php wp_nonce_field('insurance_crm_save_customer', 'insurance_crm_nonce'); ?>
-            
-            <table class="form-table">
-                <tr>
-                    <th scope="row">
-                        <label for="first_name"><?php _e('Ad', 'insurance-crm'); ?> <span class="required">*</span></label>
-                    </th>
-                    <td>
-                        <input type="text" name="first_name" id="first_name" class="regular-text" 
-                               value="<?php echo isset($customer_data->first_name) ? esc_attr($customer_data->first_name) : ''; ?>" required>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="last_name"><?php _e('Soyad', 'insurance-crm'); ?> <span class="required">*</span></label>
-                    </th>
-                    <td>
-                        <input type="text" name="last_name" id="last_name" class="regular-text" 
-                               value="<?php echo isset($customer_data->last_name) ? esc_attr($customer_data->last_name) : ''; ?>" required>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="tc_identity"><?php _e('TC Kimlik No', 'insurance-crm'); ?> <span class="required">*</span></label>
-                    </th>
-                    <td>
-                        <input type="text" name="tc_identity" id="tc_identity" class="regular-text" maxlength="11" 
-                               value="<?php echo isset($customer_data->tc_identity) ? esc_attr($customer_data->tc_identity) : ''; ?>" required>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="email"><?php _e('E-posta', 'insurance-crm'); ?> <span class="required">*</span></label>
-                    </th>
-                    <td>
-                        <input type="email" name="email" id="email" class="regular-text" 
-                               value="<?php echo isset($customer_data->email) ? esc_attr($customer_data->email) : ''; ?>" required>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="phone"><?php _e('Telefon', 'insurance-crm'); ?> <span class="required">*</span></label>
-                    </th>
-                    <td>
-                        <input type="tel" name="phone" id="phone" class="regular-text" 
-                               value="<?php echo isset($customer_data->phone) ? esc_attr($customer_data->phone) : ''; ?>" required>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="address"><?php _e('Adres', 'insurance-crm'); ?></label>
-                    </th>
-                    <td>
-                        <textarea name="address" id="address" class="large-text" rows="5"><?php echo isset($customer_data->address) ? esc_textarea($customer_data->address) : ''; ?></textarea>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="category"><?php _e('Kategori', 'insurance-crm'); ?></label>
-                    </th>
-                    <td>
-                        <select name="category" id="category">
-                            <option value="bireysel" <?php selected(isset($customer_data->category) ? $customer_data->category : '', 'bireysel'); ?>><?php _e('Bireysel', 'insurance-crm'); ?></option>
-                            <option value="kurumsal" <?php selected(isset($customer_data->category) ? $customer_data->category : '', 'kurumsal'); ?>><?php _e('Kurumsal', 'insurance-crm'); ?></option>
-                        </select>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="status"><?php _e('Durum', 'insurance-crm'); ?></label>
-                    </th>
-                    <td>
-                        <select name="status" id="status">
-                            <option value="aktif" <?php selected(isset($customer_data->status) ? $customer_data->status : '', 'aktif'); ?>><?php _e('Aktif', 'insurance-crm'); ?></option>
-                            <option value="pasif" <?php selected(isset($customer_data->status) ? $customer_data->status : '', 'pasif'); ?>><?php _e('Pasif', 'insurance-crm'); ?></option>
-                        </select>
-                    </td>
-                </tr>
-
-                <tr>
-                    <th scope="row">
-                        <label for="representative_id"><?php _e('Müşteri Temsilcisi', 'insurance-crm'); ?> <span class="required">*</span></label>
-                    </th>
-                    <td>
-                        <?php
-                        global $wpdb;
-                        $representatives = $wpdb->get_results("
-                            SELECT r.*, u.display_name 
-                            FROM {$wpdb->prefix}insurance_crm_representatives r
-                            JOIN {$wpdb->users} u ON r.user_id = u.ID
-                            WHERE r.status = 'active'
-                            ORDER BY u.display_name ASC
-                        ");
-                        
-                        $current_rep = isset($customer_data->representative_id) ? $customer_data->representative_id : '';
-                        ?>
-                        <select name="representative_id" id="representative_id" required>
-                            <option value=""><?php _e('Seçiniz...', 'insurance-crm'); ?></option>
-                            <?php foreach($representatives as $rep): ?>
-                                <option value="<?php echo $rep->id; ?>" <?php selected($current_rep, $rep->id); ?>>
-                                    <?php echo esc_html($rep->display_name); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </td>
-                </tr>
-            </table>
-            
-            <p class="submit">
-                <input type="submit" name="submit" id="submit" class="button button-primary" value="<?php echo $action === 'edit' ? __('Güncelle', 'insurance-crm') : __('Ekle', 'insurance-crm'); ?>">
-                <a href="<?php echo admin_url('admin.php?page=insurance-crm-customers'); ?>" class="button"><?php _e('İptal', 'insurance-crm'); ?></a>
-            </p>
-        </form>
-
+        <p class="submit">
+            <input type="submit" name="submit_customer" class="button button-primary" value="Müşteri Ekle">
+        </p>
+    </form>
     <?php endif; ?>
 </div>
+
+<style>
+    .customer-status, .customer-category {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    .customer-status.aktif {
+        background-color: #dcf5dc;
+        color: #0a3622;
+    }
+    .customer-status.pasif {
+        background-color: #f5dcdc;
+        color: #360a0a;
+    }
+    .customer-category.bireysel {
+        background-color: #e0f0ff;
+        color: #0a366c;
+    }
+    .customer-category.kurumsal {
+        background-color: #daf0e8;
+        color: #0a3636;
+    }
+    .required {
+        color: #dc3232;
+    }
+</style>
+
+<script>
+jQuery(document).ready(function($) {
+    // TC Kimlik doğrulama
+    $('#tc_identity').on('change', function() {
+        var $input = $(this);
+        var tc = $input.val();
+
+        if (tc.length !== 11 || !validateTC(tc)) {
+            $input.addClass('error');
+            alert('Geçersiz TC Kimlik numarası!');
+            $input.val('');
+        } else {
+            $input.removeClass('error');
+        }
+    });
+
+    // TC Kimlik algoritma kontrolü
+    function validateTC(value) {
+        if (value.substring(0, 1) === '0') return false;
+        if (!(/^[0-9]+$/.test(value))) return false;
+
+        var digits = value.split('');
+        var sum = 0;
+        for (var i = 0; i < 10; i++) {
+            sum += parseInt(digits[i]);
+        }
+        return sum % 10 === parseInt(digits[10]);
+    }
+});
+</script>
