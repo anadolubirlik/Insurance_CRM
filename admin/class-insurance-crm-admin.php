@@ -44,6 +44,13 @@ class Insurance_CRM_Admin {
     public function __construct($plugin_name, $version) {
         $this->plugin_name = $plugin_name;
         $this->version = $version;
+        
+        // Custom CSS ve JS dosyalarını yükle
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_styles'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_scripts'));
+        
+        // Admin menü ve alt menüleri kaydet
+        add_action('admin_menu', array($this, 'register_admin_menus'));
     }
 
     /**
@@ -53,6 +60,9 @@ class Insurance_CRM_Admin {
      */
     public function enqueue_styles() {
         wp_enqueue_style($this->plugin_name, plugin_dir_url(__FILE__) . 'css/insurance-crm-admin.css', array(), $this->version, 'all');
+        
+        // jQuery UI CSS
+        wp_enqueue_style('jquery-ui', 'https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css', array(), '1.12.1');
     }
 
     /**
@@ -61,6 +71,8 @@ class Insurance_CRM_Admin {
      * @since    1.0.0
      */
     public function enqueue_scripts() {
+        wp_enqueue_script('jquery-ui-datepicker');
+        wp_enqueue_script('jquery-ui-tabs');
         wp_enqueue_script($this->plugin_name, plugin_dir_url(__FILE__) . 'js/insurance-crm-admin.js', array('jquery'), $this->version, false);
     }
 
@@ -173,7 +185,7 @@ class Insurance_CRM_Admin {
         
         // Müşteri Detayları sayfası (görünmez menü)
         add_submenu_page(
-            null,                          // Görünmez menü için parent slug null
+            'insurance-crm',                  // Önemli: Bu null değil, ana menü altında olmalı
             'Müşteri Detayları',           // Sayfa başlığı
             'Müşteri Detayları',           // Menü başlığı (görünmeyecek)
             'manage_options',              // Yetki
@@ -181,5 +193,4 @@ class Insurance_CRM_Admin {
             array($this, 'customer_details_page') // Callback fonksiyonu
         );
     }
-
 }

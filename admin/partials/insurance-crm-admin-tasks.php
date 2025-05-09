@@ -306,7 +306,7 @@ $today = date('Y-m-d H:i:s');
     <a href="<?php echo admin_url('admin.php?page=insurance-crm-customer-details&id=' . $task->customer_id); ?>">
         <?php echo esc_html($task->first_name . ' ' . $task->last_name); ?>
     </a>
-</td>                        
+</td>                     
 
                         <td>
                             <?php if ($task->policy_number): ?>
