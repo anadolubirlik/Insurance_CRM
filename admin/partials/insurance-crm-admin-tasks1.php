@@ -206,9 +206,6 @@ if (!empty($where_values)) {
 } else {
     $tasks = $wpdb->get_results($query);
 }
-
-// Son tarih geçmiş görevleri vurgulama
-$today = date('Y-m-d H:i:s');
 ?>
 
 <div class="wrap">
@@ -288,33 +285,16 @@ $today = date('Y-m-d H:i:s');
                         <td colspan="9">Hiç görev bulunamadı.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($tasks as $task): 
-                        $is_overdue = strtotime($task->due_date) < strtotime($today) && $task->status != 'completed';
-                    ?>
-                    <tr <?php echo $is_overdue ? 'class="overdue-task"' : ''; ?>>
+                    <?php foreach ($tasks as $task): ?>
+                    <tr>
                         <td><?php echo esc_html($task->id); ?></td>
                         <td>
                             <a href="<?php echo admin_url('admin.php?page=insurance-crm-tasks&action=edit&id=' . $task->id); ?>">
                                 <?php echo esc_html($task->task_description); ?>
                             </a>
-                            <?php if ($is_overdue): ?>
-                                <span class="overdue-badge">Gecikmiş!</span>
-                            <?php endif; ?>
                         </td>
-                        <td>
-                            <a href="<?php echo admin_url('admin.php?page=insurance-crm-customer-details&id=' . $task->customer_id); ?>">
-                                <?php echo esc_html($task->first_name . ' ' . $task->last_name); ?>
-                            </a>
-                        </td>
-                        <td>
-                            <?php if ($task->policy_number): ?>
-                                <a href="<?php echo admin_url('admin.php?page=insurance-crm-policies&action=edit&id=' . $task->policy_id); ?>">
-                                    <?php echo esc_html($task->policy_number); ?>
-                                </a>
-                            <?php else: ?>
-                                —
-                            <?php endif; ?>
-                        </td>
+                        <td><?php echo esc_html($task->first_name . ' ' . $task->last_name); ?></td>
+                        <td><?php echo esc_html($task->policy_number ? $task->policy_number : '—'); ?></td>
                         <td><?php echo date('d.m.Y H:i', strtotime($task->due_date)); ?></td>
                         <td>
                             <span class="task-priority priority-<?php echo esc_attr($task->priority); ?>">
@@ -390,18 +370,6 @@ $today = date('Y-m-d H:i:s');
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <?php if (!$editing): ?>
-                        <p class="description">
-                            Müşteri seçtikten sonra detayları görmek için 
-                            <a href="#" id="view-customer-link" target="_blank">buraya tıklayın</a>
-                        </p>
-                        <?php else: ?>
-                        <p class="description">
-                            <a href="<?php echo admin_url('admin.php?page=insurance-crm-customer-details&id=' . esc_attr($edit_task->customer_id)); ?>" target="_blank">
-                                Müşteri detaylarını görüntüle
-                            </a>
-                        </p>
-                        <?php endif; ?>
                     </td>
                 </tr>
                 
@@ -432,8 +400,7 @@ $today = date('Y-m-d H:i:s');
                     <th><label for="due_date">Son Tarih <span class="required">*</span></label></th>
                     <td>
                         <input type="datetime-local" name="due_date" id="due_date" class="regular-text" 
-                               value="<?php echo $editing ? date('Y-m-d\TH:i', strtotime($edit_task->due_date)) : date('Y-m-d\TH:i'); ?>" required>
-                        <p class="description">Görevin tamamlanması gereken son tarih ve saat</p>
+                               value="<?php echo $editing ? date('Y-m-d\TH:i', strtotime($edit_task->due_date)) : ''; ?>" required>
                     </td>
                 </tr>
                 
@@ -442,7 +409,7 @@ $today = date('Y-m-d H:i:s');
                     <td>
                         <select name="priority" id="priority" class="regular-text" required>
                             <option value="low" <?php echo $editing && $edit_task->priority == 'low' ? 'selected' : ''; ?>>Düşük</option>
-                            <option value="medium" <?php echo (!$editing || ($editing && $edit_task->priority == 'medium')) ? 'selected' : ''; ?>>Orta</option>
+                            <option value="medium" <?php echo $editing && $edit_task->priority == 'medium' ? 'selected' : ''; ?>>Orta</option>
                             <option value="high" <?php echo $editing && $edit_task->priority == 'high' ? 'selected' : ''; ?>>Yüksek</option>
                         </select>
                         <div class="priority-preview">
@@ -455,7 +422,7 @@ $today = date('Y-m-d H:i:s');
                     <th><label for="status">Durum <span class="required">*</span></label></th>
                     <td>
                         <select name="status" id="status" class="regular-text" required>
-                            <option value="pending" <?php echo (!$editing || ($editing && $edit_task->status == 'pending')) ? 'selected' : ''; ?>>Beklemede</option>
+                            <option value="pending" <?php echo $editing && $edit_task->status == 'pending' ? 'selected' : ''; ?>>Beklemede</option>
                             <option value="in_progress" <?php echo $editing && $edit_task->status == 'in_progress' ? 'selected' : ''; ?>>İşlemde</option>
                             <option value="completed" <?php echo $editing && $edit_task->status == 'completed' ? 'selected' : ''; ?>>Tamamlandı</option>
                             <option value="cancelled" <?php echo $editing && $edit_task->status == 'cancelled' ? 'selected' : ''; ?>>İptal Edildi</option>
@@ -478,7 +445,6 @@ $today = date('Y-m-d H:i:s');
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <p class="description">Bu görevden sorumlu olacak müşteri temsilcisi</p>
                     </td>
                 </tr>
             </table>
@@ -615,22 +581,6 @@ $today = date('Y-m-d H:i:s');
     color: #dc3232;
 }
 
-/* Gecikmiş görevler için stil */
-.overdue-task {
-    background-color: #fff8f8;
-}
-
-.overdue-badge {
-    display: inline-block;
-    background-color: #dc3232;
-    color: white;
-    padding: 2px 5px;
-    border-radius: 3px;
-    font-size: 11px;
-    margin-left: 5px;
-    vertical-align: middle;
-}
-
 /* Responsive düzenlemeler */
 @media screen and (max-width: 782px) {
     .filter-row {
@@ -657,9 +607,6 @@ jQuery(document).ready(function($) {
         
         if (customer_id) {
             $('#policy_id option[data-customer="' + customer_id + '"]').show();
-            
-            // Müşteri detay linki güncelle
-            $('#view-customer-link').attr('href', '<?php echo admin_url("admin.php?page=insurance-crm-customer-details&id="); ?>' + customer_id);
         }
     });
     
@@ -711,7 +658,7 @@ jQuery(document).ready(function($) {
         return true;
     });
     
-    // Son tarihin geçmiş olup olmadığını kontrol et ve vurgula
+    // Son tarihin geçmiş olup olmadığını kontrol et
     function checkDueDate() {
         var dueDateInput = $('#due_date').val();
         if (dueDateInput) {
@@ -720,19 +667,13 @@ jQuery(document).ready(function($) {
             
             if (dueDate < now) {
                 $('#due_date').css('background-color', '#ffeaed');
-                $('#due_date').after('<span class="overdue-hint" style="color: #dc3232; display: block; margin-top: 5px;">Bu tarih geçmiş!</span>');
             } else {
                 $('#due_date').css('background-color', '');
-                $('.overdue-hint').remove();
             }
         }
     }
     
-    $('#due_date').on('change', function() {
-        $('.overdue-hint').remove();
-        checkDueDate();
-    });
-    
+    $('#due_date').on('change', checkDueDate);
     checkDueDate();
 });
 </script>

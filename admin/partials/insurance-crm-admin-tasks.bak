@@ -1,0 +1,360 @@
+<?php
+/**
+ * Görevler Sayfası
+ *
+ * @package    Insurance_CRM
+ * @subpackage Insurance_CRM/admin/partials
+ * @author     Anadolu Birlik
+ * @since      1.0.0 (2025-05-02)
+ */
+
+if (!defined('WPINC')) {
+    die;
+}
+
+$action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : 'list';
+$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$task = new Insurance_CRM_Task();
+$customer = new Insurance_CRM_Customer();
+$policy = new Insurance_CRM_Policy();
+
+// Form gönderildiğinde
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['insurance_crm_nonce'])) {
+    if (!wp_verify_nonce($_POST['insurance_crm_nonce'], 'insurance_crm_save_task')) {
+        wp_die(__('Güvenlik doğrulaması başarısız', 'insurance-crm'));
+    }
+
+    $data = array(
+        'customer_id' => intval($_POST['customer_id']),
+        'policy_id' => !empty($_POST['policy_id']) ? intval($_POST['policy_id']) : null,
+        'task_description' => sanitize_textarea_field($_POST['task_description']),
+        'due_date' => sanitize_text_field($_POST['due_date']),
+        'priority' => sanitize_text_field($_POST['priority']),
+        'status' => sanitize_text_field($_POST['status'])
+    );
+
+    if ($id > 0) {
+        $result = $task->update($id, $data);
+    } else {
+        $result = $task->add($data);
+    }
+
+    if (is_wp_error($result)) {
+        $error_message = $result->get_error_message();
+    } else {
+        wp_redirect(admin_url('admin.php?page=insurance-crm-tasks&message=' . ($id ? 'updated' : 'added')));
+        exit;
+    }
+}
+
+// Mesaj gösterimi
+if (isset($_GET['message'])) {
+    $message = '';
+    switch ($_GET['message']) {
+        case 'added':
+            $message = __('Görev başarıyla eklendi.', 'insurance-crm');
+            break;
+        case 'updated':
+            $message = __('Görev başarıyla güncellendi.', 'insurance-crm');
+            break;
+        case 'deleted':
+            $message = __('Görev başarıyla silindi.', 'insurance-crm');
+            break;
+    }
+    if ($message) {
+        echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
+    }
+}
+
+// Hata gösterimi
+if (isset($error_message)) {
+    echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($error_message) . '</p></div>';
+}
+?>
+
+<div class="wrap insurance-crm-wrap">
+    <div class="insurance-crm-header">
+        <h1>
+            <?php 
+            if ($action === 'new') {
+                _e('Yeni Görev', 'insurance-crm');
+            } elseif ($action === 'edit') {
+                _e('Görev Düzenle', 'insurance-crm');
+            } else {
+                _e('Görevler', 'insurance-crm');
+            }
+            ?>
+        </h1>
+        <?php if ($action === 'list'): ?>
+            <a href="<?php echo admin_url('admin.php?page=insurance-crm-tasks&action=new'); ?>" class="page-title-action">
+                <?php _e('Yeni Ekle', 'insurance-crm'); ?>
+            </a>
+        <?php endif; ?>
+    </div>
+
+    <?php if ($action === 'list'): ?>
+        
+        <!-- Filtre Formu -->
+        <div class="tablenav top">
+            <form method="get" class="insurance-crm-filter-form">
+                <input type="hidden" name="page" value="insurance-crm-tasks">
+                
+                <div class="alignleft actions">
+                    <input type="search" name="s" value="<?php echo isset($_GET['s']) ? esc_attr($_GET['s']) : ''; ?>" placeholder="<?php _e('Görev Ara...', 'insurance-crm'); ?>">
+                    
+                    <select name="customer_id">
+                        <option value=""><?php _e('Tüm Müşteriler', 'insurance-crm'); ?></option>
+                        <?php
+                        $customers = $customer->get_all();
+                        foreach ($customers as $c) {
+                            echo sprintf(
+                                '<option value="%d" %s>%s</option>',
+                                $c->id,
+                                selected(isset($_GET['customer_id']) ? $_GET['customer_id'] : '', $c->id, false),
+                                esc_html($c->first_name . ' ' . $c->last_name)
+                            );
+                        }
+                        ?>
+                    </select>
+                    
+                    <select name="priority">
+                        <option value=""><?php _e('Tüm Öncelikler', 'insurance-crm'); ?></option>
+                        <option value="low" <?php selected(isset($_GET['priority']) ? $_GET['priority'] : '', 'low'); ?>><?php _e('Düşük', 'insurance-crm'); ?></option>
+                        <option value="medium" <?php selected(isset($_GET['priority']) ? $_GET['priority'] : '', 'medium'); ?>><?php _e('Orta', 'insurance-crm'); ?></option>
+                        <option value="high" <?php selected(isset($_GET['priority']) ? $_GET['priority'] : '', 'high'); ?>><?php _e('Yüksek', 'insurance-crm'); ?></option>
+                    </select>
+                    
+                    <select name="status">
+                        <option value=""><?php _e('Tüm Durumlar', 'insurance-crm'); ?></option>
+                        <option value="pending" <?php selected(isset($_GET['status']) ? $_GET['status'] : '', 'pending'); ?>><?php _e('Bekliyor', 'insurance-crm'); ?></option>
+                        <option value="in_progress" <?php selected(isset($_GET['status']) ? $_GET['status'] : '', 'in_progress'); ?>><?php _e('Devam Ediyor', 'insurance-crm'); ?></option>
+                        <option value="completed" <?php selected(isset($_GET['status']) ? $_GET['status'] : '', 'completed'); ?>><?php _e('Tamamlandı', 'insurance-crm'); ?></option>
+                        <option value="cancelled" <?php selected(isset($_GET['status']) ? $_GET['status'] : '', 'cancelled'); ?>><?php _e('İptal', 'insurance-crm'); ?></option>
+                    </select>
+                    
+                    <?php submit_button(__('Filtrele', 'insurance-crm'), 'action', '', false); ?>
+                </div>
+            </form>
+        </div>
+
+        <!-- Görev Listesi -->
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th><?php _e('Görev', 'insurance-crm'); ?></th>
+                    <th><?php _e('Müşteri', 'insurance-crm'); ?></th>
+                    <th><?php _e('Poliçe', 'insurance-crm'); ?></th>
+                    <th><?php _e('Son Tarih', 'insurance-crm'); ?></th>
+                    <th><?php _e('Öncelik', 'insurance-crm'); ?></th>
+                    <th><?php _e('Durum', 'insurance-crm'); ?></th>
+                    <th><?php _e('İşlemler', 'insurance-crm'); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $args = array(
+                    'search' => isset($_GET['s']) ? $_GET['s'] : '',
+                    'customer_id' => isset($_GET['customer_id']) ? intval($_GET['customer_id']) : 0,
+                    'priority' => isset($_GET['priority']) ? $_GET['priority'] : '',
+                    'status' => isset($_GET['status']) ? $_GET['status'] : ''
+                );
+                
+                $tasks = $task->get_all($args);
+                
+                if (!empty($tasks)):
+                    foreach ($tasks as $item):
+                        $edit_url = admin_url('admin.php?page=insurance-crm-tasks&action=edit&id=' . $item->id);
+                        $delete_url = wp_nonce_url(admin_url('admin.php?page=insurance-crm-tasks&action=delete&id=' . $item->id), 'delete_task_' . $item->id);
+                        
+                        // Öncelik ve durum badge sınıfları
+                        $priority_classes = array(
+                            'low' => 'insurance-crm-badge-success',
+                            'medium' => 'insurance-crm-badge-warning',
+                            'high' => 'insurance-crm-badge-danger'
+                        );
+                        
+                        $status_classes = array(
+                            'pending' => 'insurance-crm-badge-warning',
+                            'in_progress' => 'insurance-crm-badge-info',
+                            'completed' => 'insurance-crm-badge-success',
+                            'cancelled' => 'insurance-crm-badge-danger'
+                        );
+                ?>
+                    <tr>
+                        <td>
+                            <strong><a href="<?php echo $edit_url; ?>"><?php echo esc_html(wp_trim_words($item->task_description, 10)); ?></a></strong>
+                        </td>
+                        <td>
+                            <a href="<?php echo admin_url('admin.php?page=insurance-crm-customers&action=edit&id=' . $item->customer_id); ?>">
+                                <?php echo esc_html($item->first_name . ' ' . $item->last_name); ?>
+                            </a>
+                        </td>
+                        <td>
+                            <?php if ($item->policy_id): ?>
+                                <a href="<?php echo admin_url('admin.php?page=insurance-crm-policies&action=edit&id=' . $item->policy_id); ?>">
+                                    <?php echo esc_html($item->policy_number); ?>
+                                </a>
+                            <?php else: ?>
+                                -
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php
+                            $due_date = strtotime($item->due_date);
+                            $now = current_time('timestamp');
+                            $date_class = '';
+                            
+                            if ($due_date < $now && $item->status !== 'completed') {
+                                $date_class = 'insurance-crm-text-danger';
+                            }
+                            ?>
+                            <span class="<?php echo $date_class; ?>">
+                                <?php echo date_i18n('d.m.Y H:i', $due_date); ?>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="insurance-crm-badge <?php echo $priority_classes[$item->priority]; ?>">
+                                <?php echo esc_html(ucfirst($item->priority)); ?>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="insurance-crm-badge <?php echo $status_classes[$item->status]; ?>">
+                                <?php echo esc_html(ucfirst($item->status)); ?>
+                            </span>
+                        </td>
+                        <td>
+                            <a href="<?php echo $edit_url; ?>" class="button button-small"><?php _e('Düzenle', 'insurance-crm'); ?></a>
+                            <a href="<?php echo $delete_url; ?>" class="button button-small button-link-delete insurance-crm-delete" onclick="return confirm('<?php _e('Bu görevi silmek istediğinizden emin misiniz?', 'insurance-crm'); ?>')">
+                                <?php _e('Sil', 'insurance-crm'); ?>
+                            </a>
+                        </td>
+                    </tr>
+                <?php
+                    endforeach;
+                else:
+                ?>
+                    <tr>
+                        <td colspan="7"><?php _e('Görev bulunamadı.', 'insurance-crm'); ?></td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+
+    <?php else: ?>
+        
+        <!-- Görev Formu -->
+        <?php
+        $task_data = new stdClass();
+        if ($action === 'edit') {
+            $task_data = $task->get($id);
+            if (!$task_data) {
+                wp_die(__('Görev bulunamadı.', 'insurance-crm'));
+            }
+        }
+        ?>
+        
+        <form method="post" class="insurance-crm-form">
+            <?php wp_nonce_field('insurance_crm_save_task', 'insurance_crm_nonce'); ?>
+            
+            <table class="form-table">
+                <tr>
+                    <th scope="row">
+                        <label for="customer_id"><?php _e('Müşteri', 'insurance-crm'); ?> <span class="required">*</span></label>
+                    </th>
+                    <td>
+                        <select name="customer_id" id="customer_id" class="regular-text" required>
+                            <option value=""><?php _e('Müşteri Seçin', 'insurance-crm'); ?></option>
+                            <?php
+                            $customers = $customer->get_all();
+                            foreach ($customers as $c) {
+                                echo sprintf(
+                                    '<option value="%d" %s>%s</option>',
+                                    $c->id,
+                                    selected(isset($task_data->customer_id) ? $task_data->customer_id : '', $c->id, false),
+                                    esc_html($c->first_name . ' ' . $c->last_name)
+                                );
+                            }
+                            ?>
+                        </select>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">
+                        <label for="policy_id"><?php _e('Poliçe', 'insurance-crm'); ?></label>
+                    </th>
+                    <td>
+                        <select name="policy_id" id="policy_id" class="regular-text">
+                            <option value=""><?php _e('Poliçe Seçin', 'insurance-crm'); ?></option>
+                            <?php
+                            if (isset($task_data->customer_id)) {
+                                $policies = $policy->get_all(array('customer_id' => $task_data->customer_id));
+                                foreach ($policies as $p) {
+                                    echo sprintf(
+                                        '<option value="%d" %s>%s</option>',
+                                        $p->id,
+                                        selected(isset($task_data->policy_id) ? $task_data->policy_id : '', $p->id, false),
+                                        esc_html($p->policy_number)
+                                    );
+                                }
+                            }
+                            ?>
+                        </select>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">
+                        <label for="task_description"><?php _e('Görev Açıklaması', 'insurance-crm'); ?> <span class="required">*</span></label>
+                    </th>
+                    <td>
+                        <textarea name="task_description" id="task_description" class="large-text" rows="5" required><?php echo isset($task_data->task_description) ? esc_textarea($task_data->task_description) : ''; ?></textarea>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">
+                        <label for="due_date"><?php _e('Son Tarih', 'insurance-crm'); ?> <span class="required">*</span></label>
+                    </th>
+                    <td>
+                        <input type="datetime-local" name="due_date" id="due_date" class="regular-text" 
+                               value="<?php echo isset($task_data->due_date) ? date('Y-m-d\TH:i', strtotime($task_data->due_date)) : ''; ?>" required>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">
+                        <label for="priority"><?php _e('Öncelik', 'insurance-crm'); ?></label>
+                    </th>
+                    <td>
+                        <select name="priority" id="priority">
+                            <option value="low" <?php selected(isset($task_data->priority) ? $task_data->priority : '', 'low'); ?>><?php _e('Düşük', 'insurance-crm'); ?></option>
+                            <option value="medium" <?php selected(isset($task_data->priority) ? $task_data->priority : '', 'medium'); ?>><?php _e('Orta', 'insurance-crm'); ?></option>
+                            <option value="high" <?php selected(isset($task_data->priority) ? $task_data->priority : '', 'high'); ?>><?php _e('Yüksek', 'insurance-crm'); ?></option>
+                        </select>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">
+                        <label for="status"><?php _e('Durum', 'insurance-crm'); ?></label>
+                    </th>
+                    <td>
+                        <select name="status" id="status">
+                            <option value="pending" <?php selected(isset($task_data->status) ? $task_data->status : '', 'pending'); ?>><?php _e('Bekliyor', 'insurance-crm'); ?></option>
+                            <option value="in_progress" <?php selected(isset($task_data->status) ? $task_data->status : '', 'in_progress'); ?>><?php _e('Devam Ediyor', 'insurance-crm'); ?></option>
+                            <option value="completed" <?php selected(isset($task_data->status) ? $task_data->status : '', 'completed'); ?>><?php _e('Tamamlandı', 'insurance-crm'); ?></option>
+                            <option value="cancelled" <?php selected(isset($task_data->status) ? $task_data->status : '', 'cancelled'); ?>><?php _e('İptal', 'insurance-crm'); ?></option>
+                        </select>
+                    </td>
+                </tr>
+            </table>
+            
+            <p class="submit">
+                <input type="submit" name="submit" id="submit" class="button button-primary" value="<?php echo $action === 'edit' ? __('Güncelle', 'insurance-crm') : __('Ekle', 'insurance-crm'); ?>">
+                <a href="<?php echo admin_url('admin.php?page=insurance-crm-tasks'); ?>" class="button"><?php _e('İptal', 'insurance-crm'); ?></a>
+            </p>
+        </form>
+
+    <?php endif; ?>
+</div>
